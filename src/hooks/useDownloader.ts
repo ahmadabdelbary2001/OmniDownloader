@@ -207,12 +207,23 @@ export function useDownloader() {
     setIsLoading(true);
     addLog(`🔍 Fetching metadata for: ${url}`);
     
+    // Parse target video ID and index if present in a playlist link
+    let requestedVideoId: string | undefined;
+    let requestedIndex: number | undefined;
+    
+    try {
+      const urlObj = new URL(url);
+      requestedVideoId = urlObj.searchParams.get('v') || undefined;
+      const idxStr = urlObj.searchParams.get('index');
+      if (idxStr) requestedIndex = parseInt(idxStr);
+    } catch (e) {}
+
     try {
       const output = await Command.sidecar("ytdlp", [
         "--js-runtimes", "node",
-        "--dump-json",
-        "--no-download",
+        "--dump-single-json",
         "--flat-playlist",
+        "--no-download",
         "--no-check-certificate",
         url
       ]).execute();
@@ -222,40 +233,28 @@ export function useDownloader() {
         throw new Error("No metadata returned from yt-dlp");
       }
       
-      // Parse the output. If it's a playlist, it might have multiple JSON objects.
-      // Usually, the first object is the playlist itself or the first video.
-      const lines = output.stdout.split('\n').filter(l => l.trim());
-      if (lines.length === 0) throw new Error("Empty output from yt-dlp");
-
-      // Try to find the playlist object in the results (usually the first line)
-      let json = null;
-      for (const line of lines) {
-        try {
-          const candidate = JSON.parse(line);
-          if (candidate._type === 'playlist' || !!candidate.entries) {
-            json = candidate;
-            break;
-          }
-        } catch (e) {}
-      }
-
-      // Fallback to the first line if no playlist object found
-      if (!json) {
-        try {
-          json = JSON.parse(lines[0]);
-        } catch (e) {
-          throw new Error("Failed to parse yt-dlp output");
-        }
-      }
+      const json = JSON.parse(output.stdout);
+      
+      const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
       
       const metadata: MediaMetadata = {
-        title: json.title || (json._type === 'playlist' ? "Playlist" : "Unknown Title"),
+        title: json.title || (isPlaylist ? "Playlist" : "Unknown Title"),
         thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
-        isPlaylist: (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL')),
-        formats: json.formats || []
+        isPlaylist: isPlaylist,
+        formats: json.formats || [],
+        entries: json.entries ? json.entries.map((e: any, i: number) => ({
+          id: e.id || String(i),
+          title: e.title || `Video ${i + 1}`,
+          url: e.url || e.webpage_url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : ""),
+          thumbnail: e.thumbnail || (e.thumbnails?.[0]?.url) || "",
+          index: i + 1
+        })) : [],
+        requestedVideoId,
+        requestedIndex
       };
       
       addLog(`✅ Metadata found: ${metadata.title} (Type: ${metadata.isPlaylist ? 'Playlist' : 'Single Video'})`);
+      if (metadata.isPlaylist) addLog(`📦 Found ${metadata.entries?.length || 0} videos in playlist.`);
       return metadata;
     } catch (e) {
       addLog(`⚠️ Metadata fetch error: ${e}`);

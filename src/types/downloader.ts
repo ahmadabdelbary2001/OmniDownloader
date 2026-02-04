@@ -17,9 +17,20 @@ export interface DownloadOptions {
   quality?: VideoQuality;
 }
 
+export interface PlaylistEntry {
+  id: string;
+  title: string;
+  url: string;
+  thumbnail: string;
+  index: number;
+}
+
 export interface MediaMetadata {
   title: string;
   thumbnail: string;
   isPlaylist: boolean;
+  entries?: PlaylistEntry[];
   formats?: any[];
+  requestedVideoId?: string;
+  requestedIndex?: number;
 }

@@ -1,8 +1,10 @@
-import { Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, Check, ListChecks, Hash, ArrowRight } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { VideoQuality, MediaMetadata } from '../../types/downloader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { ScrollArea } from '../ui/scroll-area';
 
 interface DirectTabProps {
   url: string;
@@ -25,9 +27,83 @@ export function DirectTab({
   isPlaylist, metadata,
   onAnalyze, onDownload, isLoading 
 }: DirectTabProps) {
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
+  const [selectionMode, setSelectionMode] = useState<'checkbox' | 'range'>('checkbox');
+
+  // Sync the playlistItems string whenever selection changes
+  useEffect(() => {
+    if (!isPlaylist) return;
+
+    if (selectionMode === 'range') {
+      if (rangeFrom || rangeTo) {
+        setPlaylistItems(`${rangeFrom || 1}-${rangeTo || ''}`);
+      } else {
+        setPlaylistItems('');
+      }
+    } else {
+      if (selectedIndices.size > 0) {
+        setPlaylistItems(Array.from(selectedIndices).sort((a, b) => a - b).join(','));
+      } else {
+        setPlaylistItems('');
+      }
+    }
+  }, [selectedIndices, rangeFrom, rangeTo, selectionMode, isPlaylist, setPlaylistItems]);
+
+  // Auto-select requested video within playlist
+  useEffect(() => {
+    if (isPlaylist && metadata?.entries) {
+      const next = new Set<number>();
+      
+      if (metadata.requestedVideoId) {
+        const found = metadata.entries.find(e => e.id === metadata.requestedVideoId);
+        if (found) {
+          next.add(found.index);
+        } else if (metadata.requestedIndex && metadata.requestedIndex <= metadata.entries.length) {
+          next.add(metadata.requestedIndex);
+        }
+      } else if (metadata.requestedIndex && metadata.requestedIndex <= metadata.entries.length) {
+        next.add(metadata.requestedIndex);
+      }
+
+      if (next.size > 0) {
+        setSelectedIndices(next);
+        setSelectionMode('checkbox');
+      }
+    } else {
+      setSelectedIndices(new Set());
+    }
+  }, [metadata, isPlaylist]);
+
+  const toggleIndex = (index: number) => {
+    const next = new Set(selectedIndices);
+    if (next.has(index)) {
+      next.delete(index);
+    } else {
+      next.add(index);
+    }
+    setSelectedIndices(next);
+    setSelectionMode('checkbox');
+  };
+
+  const selectAll = () => {
+    if (!metadata?.entries) return;
+    const all = new Set(metadata.entries.map(e => e.index));
+    setSelectedIndices(all);
+    setSelectionMode('checkbox');
+  };
+
+  const clearSelection = () => {
+    setSelectedIndices(new Set());
+    setRangeFrom('');
+    setRangeTo('');
+    setPlaylistItems('');
+  };
+
   return (
-    <div className="flex flex-col h-full p-6 m-0 space-y-6 overflow-y-auto">
-        <div className="space-y-2">
+    <div className="flex flex-col h-full p-6 m-0 space-y-6 overflow-hidden">
+        <div className="space-y-2 shrink-0">
           <label className="text-[10px] font-black text-blue-400 uppercase tracking-[2px]">Direct Media/Site URL</label>
           <div className="flex gap-2">
             <Input 
@@ -40,21 +116,45 @@ export function DirectTab({
               {isLoading ? <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" /> : "ANALYZE"}
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground/60 italic">Supports smart detection for Telegram and special sites.</p>
         </div>
 
         {metadata && (
-          <div className="flex gap-4 p-3 rounded-lg bg-white/5 border border-white/10 animate-in fade-in slide-in-from-top-2">
-            <img src={metadata.thumbnail} className="w-24 aspect-video object-cover rounded border border-white/10" alt="thumb" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-1">Detected Content</p>
-              <h4 className="text-xs font-bold text-white truncate">{metadata.title}</h4>
-              <p className="text-[10px] text-white/40 mt-1">{isPlaylist ? '📁 Playlist detected' : '🎬 Single video detected'}</p>
-            </div>
+          <div className="flex gap-4 p-3 shrink-0 rounded-lg bg-white/5 border border-white/10 animate-in fade-in slide-in-from-top-2">
+            {(() => {
+              const targetEntry = metadata.entries?.find(e => 
+                (metadata.requestedVideoId && e.id === metadata.requestedVideoId) || 
+                (!metadata.requestedVideoId && metadata.requestedIndex && e.index === metadata.requestedIndex)
+              );
+              const displayThumbnail = targetEntry?.thumbnail || metadata.thumbnail;
+              const displayTitle = targetEntry?.title || metadata.title;
+              const isTargeted = !!targetEntry;
+
+              return (
+                <>
+                  <img 
+                    src={displayThumbnail} 
+                    className="w-24 aspect-video object-cover rounded border border-white/10" 
+                    alt="thumb" 
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-1">
+                      {isPlaylist && isTargeted ? 'Detected Video in Playlist' : 'Detected Content'}
+                    </p>
+                    <h4 className="text-xs font-bold text-white truncate">
+                      {displayTitle}
+                    </h4>
+                    <p className="text-[10px] text-white/40 mt-1">
+                      {isPlaylist ? `📁 Playlist (${metadata.entries?.length || 0} videos)` : '🎬 Single video detected'}
+                      {isPlaylist && isTargeted && ` • Targeted Video #${targetEntry.index}`}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 shrink-0">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/40 uppercase tracking-[2px]">Video Quality</label>
             <Select value={quality} onValueChange={(v) => setQuality(v as VideoQuality)}>
@@ -72,20 +172,120 @@ export function DirectTab({
           </div>
 
           {isPlaylist && (
-            <div className="space-y-2 animate-in zoom-in-95 duration-300">
-              <label className="text-[10px] font-black text-blue-400 uppercase tracking-[2px]">Playlist Items</label>
-              <Input 
-                placeholder="e.g. 1,2,5-10" 
-                value={playlistItems}
-                onChange={(e) => setPlaylistItems(e.target.value)}
-                className="bg-slate-900/50 border-white/20 border-2"
-              />
+            <div className="space-y-2">
+               <label className="text-[10px] font-black text-white/40 uppercase tracking-[2px]">Final Selection Code</label>
+               <Input 
+                  value={playlistItems}
+                  readOnly
+                  placeholder="Auto-generated"
+                  className="bg-black/40 border-white/5 text-[10px] font-mono text-blue-400 opacity-60"
+               />
             </div>
           )}
         </div>
 
-        <Button onClick={() => onDownload(url, { playlistItems, quality })} disabled={isLoading || !url} className="h-12 w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold shadow-lg shadow-blue-600/20">
-          <Download className="w-5 h-5" /> START DOWNLOAD
+        {isPlaylist && metadata?.entries && metadata.entries.length > 0 && (
+          <div className="flex-1 flex flex-col min-h-0 border border-white/5 rounded-xl bg-black/20 overflow-hidden animate-in zoom-in-95 duration-300">
+             {(() => {
+               const entries = metadata.entries;
+               const totalEntries = entries.length;
+               return (
+                 <>
+                   <div className="p-3 border-b border-white/5 bg-white/5 flex items-center justify-between shrink-0">
+                      <div className="flex gap-4">
+                        <button 
+                          onClick={() => setSelectionMode('checkbox')}
+                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${selectionMode === 'checkbox' ? 'text-blue-400' : 'text-white/40 hover:text-white/70'}`}
+                        >
+                          <ListChecks className="w-3 h-3" /> Select Videos
+                        </button>
+                        <button 
+                          onClick={() => setSelectionMode('range')}
+                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${selectionMode === 'range' ? 'text-blue-400' : 'text-white/40 hover:text-white/70'}`}
+                        >
+                          <ListChecks className="w-3 h-3" /> Range (From-To)
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={selectAll} className="text-[9px] font-bold text-white/30 hover:text-white uppercase transition-colors">Select All</button>
+                        <button onClick={clearSelection} className="text-[9px] font-bold text-white/30 hover:text-white uppercase transition-colors">Clear</button>
+                      </div>
+                   </div>
+
+                   <div className="flex-1 overflow-hidden relative">
+                      {selectionMode === 'checkbox' ? (
+                        <ScrollArea className="h-full">
+                          <div className="p-2 space-y-1">
+                            {entries.map((entry) => (
+                              <div 
+                                key={entry.id} 
+                                onClick={() => toggleIndex(entry.index)}
+                                className={`group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 ${selectedIndices.has(entry.index) ? 'bg-blue-600/10 border-blue-600/20' : 'hover:bg-white/5 border-transparent'} border`}
+                              >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedIndices.has(entry.index) ? 'bg-blue-600 border-blue-600' : 'border-white/20 group-hover:border-white/40'}`}>
+                                  {selectedIndices.has(entry.index) && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                                </div>
+                                <span className="text-[10px] font-bold text-white/30 w-4 shrink-0">{entry.index}</span>
+                                <span className={`text-xs truncate flex-1 ${selectedIndices.has(entry.index) ? 'text-blue-400 font-bold' : 'text-white/60 group-hover:text-white'}`}>
+                                  {entry.title}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center p-8 space-y-6">
+                          <div className="flex flex-col items-center gap-2 mb-2">
+                             <Hash className="w-8 h-8 text-blue-600/40" />
+                             <h3 className="text-[10px] font-black uppercase tracking-[3px] text-white/40">Range Selection</h3>
+                          </div>
+                          <div className="flex items-center gap-4 bg-white/5 p-6 rounded-2xl border border-white/10 shadow-2xl">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-bold text-white/20 uppercase block ml-1">From Index</label>
+                                <Input 
+                                  type="number" 
+                                  min={1}
+                                  max={totalEntries}
+                                  placeholder="1" 
+                                  value={rangeFrom}
+                                  onChange={(e) => { 
+                                    const val = Math.max(1, Math.min(Number(e.target.value) || 1, totalEntries));
+                                    setRangeFrom(val.toString()); 
+                                    setSelectionMode('range'); 
+                                  }}
+                                  className="bg-slate-900/50 border-white/10 w-24 text-center h-12 text-lg font-black"
+                                />
+                             </div>
+                             <ArrowRight className="w-4 h-4 text-white/20 mt-6" />
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-bold text-white/20 uppercase block ml-1">To Index</label>
+                                <Input 
+                                  type="number" 
+                                  min={1}
+                                  max={totalEntries}
+                                  placeholder={totalEntries.toString()}
+                                  value={rangeTo}
+                                  onChange={(e) => { 
+                                    const val = Math.max(1, Math.min(Number(e.target.value) || totalEntries, totalEntries));
+                                    setRangeTo(val.toString()); 
+                                    setSelectionMode('range'); 
+                                  }}
+                                  className="bg-slate-900/50 border-white/10 w-24 text-center h-12 text-lg font-black"
+                                />
+                             </div>
+                          </div>
+                          <p className="text-[10px] text-white/20 italic max-w-[200px] text-center">Enter the start and end positions. Leave "To" empty to download until the end.</p>
+                        </div>
+                      )}
+                   </div>
+                 </>
+               );
+             })()}
+          </div>
+        )}
+
+        <Button onClick={() => onDownload(url, { playlistItems, quality })} disabled={isLoading || !url} className="h-14 w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold shadow-2xl shadow-blue-600/30 text-base uppercase tracking-widest shrink-0">
+          <Download className="w-5 h-5" /> Start Processing {metadata?.isPlaylist ? 'Playlist' : 'Download'}
         </Button>
     </div>
   );
