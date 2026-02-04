@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
 import { path } from '@tauri-apps/api';
 import { toast } from "sonner";
-import { SearchResult, DownloadService, DownloadOptions } from '../types/downloader';
+import { SearchResult, DownloadService, DownloadOptions, MediaMetadata } from '../types/downloader';
 
 export function useDownloader() {
   const [logs, setLogs] = useState<string[]>([]);
@@ -92,6 +92,15 @@ export function useDownloader() {
       let args: string[] = [];
       if (service === 'ytdlp') {
         const FFMPEG_PATH = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
+        let qualityArgs = "";
+        switch (options.quality) {
+          case '1080p': qualityArgs = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"; break;
+          case '720p':  qualityArgs = "bestvideo[height<=720]+bestaudio/best[height<=720]"; break;
+          case '480p':  qualityArgs = "bestvideo[height<=480]+bestaudio/best[height<=480]"; break;
+          case 'audio': qualityArgs = "bestaudio/best"; break;
+          default:      qualityArgs = "bestvideo+bestaudio/best";
+        }
+
         args = [
           "--js-runtimes", "node",
           "--ffmpeg-location", FFMPEG_PATH,
@@ -102,7 +111,7 @@ export function useDownloader() {
           "--progress",
           "--no-colors",
           "-P", downloadDir,
-          "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+          "-f", qualityArgs,
           "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           "--no-check-certificate",
           "--prefer-free-formats",
@@ -193,40 +202,111 @@ export function useDownloader() {
     addLog("🎉 All batch items processed!");
   };
 
-  const analyzeLink = async (url: string) => {
+  const getMediaMetadata = async (url: string): Promise<MediaMetadata | null> => {
     if (!url) return null;
     setIsLoading(true);
-    addLog(`🔍 Analyzing link: ${url}`);
+    addLog(`🔍 Fetching metadata for: ${url}`);
+    
+    try {
+      const output = await Command.sidecar("ytdlp", [
+        "--js-runtimes", "node",
+        "--dump-json",
+        "--no-download",
+        "--flat-playlist",
+        "--no-check-certificate",
+        url
+      ]).execute();
+
+      if (!output.stdout) {
+        if (output.stderr) addLog(`⚠️ yt-dlp stderr: ${output.stderr}`);
+        throw new Error("No metadata returned from yt-dlp");
+      }
+      
+      // Parse the output. If it's a playlist, it might have multiple JSON objects.
+      // Usually, the first object is the playlist itself or the first video.
+      const lines = output.stdout.split('\n').filter(l => l.trim());
+      if (lines.length === 0) throw new Error("Empty output from yt-dlp");
+
+      // Try to find the playlist object in the results (usually the first line)
+      let json = null;
+      for (const line of lines) {
+        try {
+          const candidate = JSON.parse(line);
+          if (candidate._type === 'playlist' || !!candidate.entries) {
+            json = candidate;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      // Fallback to the first line if no playlist object found
+      if (!json) {
+        try {
+          json = JSON.parse(lines[0]);
+        } catch (e) {
+          throw new Error("Failed to parse yt-dlp output");
+        }
+      }
+      
+      const metadata: MediaMetadata = {
+        title: json.title || (json._type === 'playlist' ? "Playlist" : "Unknown Title"),
+        thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
+        isPlaylist: (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL')),
+        formats: json.formats || []
+      };
+      
+      addLog(`✅ Metadata found: ${metadata.title} (Type: ${metadata.isPlaylist ? 'Playlist' : 'Single Video'})`);
+      return metadata;
+    } catch (e) {
+      addLog(`⚠️ Metadata fetch error: ${e}`);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const analyzeLink = async (urlInput: string) => {
+    if (!urlInput) return null;
+    let url = urlInput.trim();
+
+    // Auto-detect YouTube Playlist IDs
+    if (!url.startsWith('http') && (url.startsWith('PL') || url.startsWith('UU') || url.startsWith('LL')) && url.length >= 10) {
+      addLog(`✨ Detected YouTube Playlist ID - Formatting URL...`);
+      url = `https://www.youtube.com/playlist?list=${url}`;
+    }
+
+    setIsLoading(true);
+    addLog(`🔍 Deep analyzing link: ${url}`);
     
     try {
       if (url.includes('bigtitbitches.com')) {
-        addLog("✨ Detected bigtitbitches.com - Extracting source...");
-        const btbCmd = Command.sidecar("wget", ["-q", "-O", "-", url]);
-        let btbHtml = "";
-        btbCmd.stdout.on('data', (d) => btbHtml += d);
-        await btbCmd.spawn();
+        addLog("✨ Detected special site - Extracting source...");
+        const btbOutput = await Command.sidecar("wget", ["-q", "-O", "-", url]).execute();
+        const btbHtml = btbOutput.stdout;
         
         const iframeMatch = btbHtml.match(/iframe.*?src="(https:\/\/fuqster\.com\/embed\/\d+)"/);
         if (!iframeMatch) throw new Error("Embed iframe not found");
         
         const embedUrl = iframeMatch[1];
-        addLog(`🔗 Found embed: ${embedUrl}`);
-        
-        const embedCmd = Command.sidecar("wget", ["-q", "-O", "-", embedUrl]);
-        let embedHtml = "";
-        embedCmd.stdout.on('data', (d) => embedHtml += d);
-        await embedCmd.spawn();
+        const embedOutput = await Command.sidecar("wget", ["-q", "-O", "-", embedUrl]).execute();
+        const embedHtml = embedOutput.stdout;
         
         const videoUrlMatch = embedHtml.match(/video_url:\s*'(https:\/\/fuqster\.com\/get_file\/.*?)'/);
-        if (!videoUrlMatch) throw new Error("Direct video URL not found in embed");
+        if (!videoUrlMatch) throw new Error("Direct video URL not found");
         
         addLog("✅ successfully extracted direct URL!");
-        return { directUrl: videoUrlMatch[1], embedUrl };
+        return { directUrl: videoUrlMatch[1], embedUrl, isPlaylist: false };
       }
-      return { directUrl: url, embedUrl: null };
+      
+      const meta = await getMediaMetadata(url);
+      return { 
+        directUrl: url, 
+        embedUrl: null, 
+        isPlaylist: meta?.isPlaylist || false,
+        metadata: meta 
+      };
     } catch (e) {
       addLog(`❌ Extraction failed: ${e}`);
-      toast.error("Analysis failed");
       return null;
     } finally {
       setIsLoading(false);

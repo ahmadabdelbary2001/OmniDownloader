@@ -9,6 +9,7 @@ import { DirectTab } from './downloader/DirectTab';
 import { BatchTab } from './downloader/BatchTab';
 import { WgetTab } from './downloader/WgetTab';
 import { LogViewer } from './downloader/LogViewer';
+import { VideoQuality, MediaMetadata } from '../types/downloader';
 
 export function Downloader() {
   const {
@@ -29,6 +30,9 @@ export function Downloader() {
   const [batchUrls, setBatchUrls] = useState('');
   const [activeTab, setActiveTab] = useState('search');
   const [playlistItems, setPlaylistItems] = useState('');
+  const [quality, setQuality] = useState<VideoQuality>('best');
+  const [isPlaylist, setIsPlaylist] = useState(false);
+  const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
   const [wgetFilename, setWgetFilename] = useState('');
   const [wgetReferer, setWgetReferer] = useState('');
 
@@ -42,7 +46,9 @@ export function Downloader() {
         setActiveTab('wget');
         toast.success("Link analyzed! switched to Wget tab.");
       } else {
-        toast.info("No special extraction needed.");
+        setIsPlaylist(result.isPlaylist);
+        setMetadata(result.metadata || null);
+        toast.info(result.isPlaylist ? "Playlist detected! Items field unlocked." : "Single video analyzed.");
       }
     }
   };
@@ -89,8 +95,12 @@ export function Downloader() {
                   setUrl={setUrl} 
                   playlistItems={playlistItems} 
                   setPlaylistItems={setPlaylistItems} 
+                  quality={quality}
+                  setQuality={setQuality}
+                  isPlaylist={isPlaylist}
+                  metadata={metadata}
                   onAnalyze={onAnalyze} 
-                  onDownload={(u, p) => startDownload(u, 'ytdlp', { playlistItems: p })} 
+                  onDownload={(u, opts) => startDownload(u, 'ytdlp', opts)} 
                   isLoading={isLoading} 
                 />
               </TabsContent>
