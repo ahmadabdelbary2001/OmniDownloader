@@ -5,10 +5,12 @@ interface LogViewerProps {
   logs: string[];
   progress: number;
   onClear: () => void;
+  onStop: () => void;
+  isStopDisabled: boolean;
   endRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export function LogViewer({ logs, progress, onClear, endRef }: LogViewerProps) {
+export function LogViewer({ logs, progress, onClear, onStop, isStopDisabled, endRef }: LogViewerProps) {
   return (
     <div className="flex flex-col h-full bg-black/60 border-white/10 backdrop-blur-3xl shadow-2xl overflow-hidden rounded-xl">
       <div className="py-3 px-4 border-b border-white/5 bg-white/5 flex flex-row items-center justify-between shrink-0">
@@ -47,10 +49,20 @@ export function LogViewer({ logs, progress, onClear, endRef }: LogViewerProps) {
           </div>
         </ScrollArea>
         
-        <div className="p-4 border-t border-white/5 bg-black/40">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black text-white/30 uppercase tracking-[2px]">Download Status</span>
-            <span className={`text-xs font-black ${progress === 100 ? 'text-green-400' : 'text-blue-400'}`}>{Math.round(progress)}%</span>
+        <div className="p-4 border-t border-white/5 bg-black/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-white/30 uppercase tracking-[2px]">Download Status</span>
+              <span className={`text-xs font-black ${progress === 100 ? 'text-green-400' : 'text-blue-400'}`}>{Math.round(progress)}%</span>
+            </div>
+            {!isStopDisabled && (
+              <button 
+                onClick={onStop} 
+                className="bg-red-600 hover:bg-red-500 text-white text-[10px] font-black px-4 py-2 rounded-lg transition-colors uppercase tracking-widest shadow-lg shadow-red-600/20"
+              >
+                STOP ANYWAY
+              </button>
+            )}
           </div>
           <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
             <div 

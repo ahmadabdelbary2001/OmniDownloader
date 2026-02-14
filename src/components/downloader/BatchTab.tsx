@@ -6,10 +6,12 @@ interface BatchTabProps {
   batchUrls: string;
   setBatchUrls: (urls: string) => void;
   onDownload: (urls: string) => void;
+  onStop: () => void;
+  isStopDisabled: boolean;
   isLoading: boolean;
 }
 
-export function BatchTab({ batchUrls, setBatchUrls, onDownload, isLoading }: BatchTabProps) {
+export function BatchTab({ batchUrls, setBatchUrls, onDownload, onStop, isStopDisabled, isLoading }: BatchTabProps) {
   return (
     <div className="flex flex-col h-full p-6 m-0 space-y-6">
        <div className="space-y-2">
@@ -22,9 +24,16 @@ export function BatchTab({ batchUrls, setBatchUrls, onDownload, isLoading }: Bat
           />
           <p className="text-[10px] text-muted-foreground/60 italic">Links will be downloaded sequentially. Empty and invalid lines are ignored.</p>
        </div>
-       <Button onClick={() => onDownload(batchUrls)} disabled={isLoading || !batchUrls} className="h-12 w-full gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 font-bold shadow-lg shadow-blue-600/20 uppercase tracking-widest text-xs">
-          <Layers className="w-5 h-5" /> Start Batch Processing
-       </Button>
+       <div className="flex gap-2">
+         <Button onClick={() => onDownload(batchUrls)} disabled={isLoading || !batchUrls} className="h-12 flex-1 gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 font-bold shadow-lg shadow-blue-600/20 uppercase tracking-widest text-xs">
+            <Layers className="w-5 h-5" /> Start Batch Processing
+         </Button>
+         {!isStopDisabled && (
+           <Button onClick={onStop} variant="destructive" className="h-12 px-6 font-bold uppercase tracking-tight">
+             STOP
+           </Button>
+         )}
+       </div>
     </div>
   );
 }

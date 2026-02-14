@@ -10,10 +10,12 @@ interface WgetTabProps {
   referer: string;
   setReferer: (ref: string) => void;
   onDownload: (url: string, options: { wgetFilename: string; wgetReferer: string }) => void;
+  onStop: () => void;
+  isStopDisabled: boolean;
   isLoading: boolean;
 }
 
-export function WgetTab({ url, setUrl, filename, setFilename, referer, setReferer, onDownload, isLoading }: WgetTabProps) {
+export function WgetTab({ url, setUrl, filename, setFilename, referer, setReferer, onDownload, onStop, isStopDisabled, isLoading }: WgetTabProps) {
   return (
     <div className="flex flex-col h-full p-6 m-0 space-y-6">
       <div className="space-y-2">
@@ -45,9 +47,16 @@ export function WgetTab({ url, setUrl, filename, setFilename, referer, setRefere
           />
         </div>
       </div>
-      <Button onClick={() => onDownload(url, { wgetFilename: filename, wgetReferer: referer })} disabled={isLoading || !url} className="h-12 w-full gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-bold shadow-lg shadow-indigo-600/20">
-        <FileDown className="w-5 h-5" /> START WGET
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={() => onDownload(url, { wgetFilename: filename, wgetReferer: referer })} disabled={isLoading || !url} className="h-12 flex-1 gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-bold shadow-lg shadow-indigo-600/20">
+          <FileDown className="w-5 h-5" /> START WGET
+        </Button>
+        {!isStopDisabled && (
+          <Button onClick={onStop} variant="destructive" className="h-12 px-6 font-bold uppercase tracking-tight">
+            STOP
+          </Button>
+        )}
+      </div>
       <div className="p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10 flex items-start gap-3">
          <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
          <p className="text-[10px] text-indigo-300/60 leading-normal">Wget is ideal for direct file links that require specific headers or referer URLs.</p>

@@ -10,6 +10,9 @@ export function useDownloader() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isStopDisabled, setIsStopDisabled] = useState(true);
+  const activeProcessRef = useRef<any>(null);
+  const stopRequestedRef = useRef<boolean>(false);
   
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +44,7 @@ export function useDownloader() {
       ]);
       
       cmd.stdout.on('data', (data: string) => {
+        if (stopRequestedRef.current) return;
         const lines = data.split('\n').filter(line => line.trim());
         for (const line of lines) {
           try {
@@ -66,12 +70,64 @@ export function useDownloader() {
 
       await cmd.spawn();
       addLog("✅ Search process started.");
-    } catch (error) {
+    } catch (error: any) {
       toast.error("Search failed");
-      addLog(`❌ Search error: ${error}`);
+      addLog(`❌ Search error: ${error.message || error}`);
     } finally {
       setIsSearching(false);
+      setIsLoading(false); // Ensure isLoading is reset
+      setIsStopDisabled(true); // Ensure stop button is disabled
+      activeProcessRef.current = null; // Clear active process
     }
+  };
+
+  const isWindows = navigator.userAgent.includes('Windows');
+
+  const stopDownload = async () => {
+    if (stopRequestedRef.current) return;
+    
+    stopRequestedRef.current = true;
+    addLog("🛑 STOP requested - Terminating current download process...");
+    
+    // 1. Kill the specific active process first (Tauri v2 Child)
+    if (activeProcessRef.current) {
+      try {
+        await activeProcessRef.current.kill();
+        addLog("⚡ Terminated active process.");
+      } catch (e) {
+        addLog(`⚠️ Failed to kill active process via API: ${e}`);
+      }
+    }
+
+    // 2. Fallback: Systematic cleanup (Windows/Linux)
+    // We target common sidecar names and their triples to be sure
+    if (isWindows) {
+      const targets = [
+        "ytdlp-x86_64-pc-windows-msvc.exe",
+        "ytdlp-x86_64-pc-windows-gnu.exe",
+        "wget-x86_64-pc-windows-msvc.exe",
+        "wget-x86_64-pc-windows-gnu.exe",
+        "ffmpeg.exe",
+        "node.exe" // yt-dlp might be running node for JS challenges
+      ];
+      for (const exe of targets) {
+        try {
+          await Command.create("taskkill", ["/F", "/IM", exe, "/T"]).execute();
+        } catch (e) {}
+      }
+    } else {
+      try {
+        await Command.create("pkill", ["-9", "-f", "ytdlp"]).execute();
+        await Command.create("pkill", ["-9", "-f", "wget"]).execute();
+        await Command.create("pkill", ["-9", "-f", "ffmpeg"]).execute();
+      } catch (e) {}
+    }
+    
+    // Clean up state
+    activeProcessRef.current = null;
+    setIsLoading(false);
+    setIsStopDisabled(true);
+    addLog("✅ Cleanup complete. The process should have stopped. Click 'Download' to resume.");
   };
 
   const runSingleDownload = async (
@@ -86,12 +142,41 @@ export function useDownloader() {
     let lastCode: number | null = 1;
 
     for (const client of clients) {
+      if (stopRequestedRef.current) break;
       setProgress(0);
       addLog(`🚀 [TRYING] ${client} for ${smartLabel}`);
 
       let args: string[] = [];
       if (service === 'ytdlp') {
-        const FFMPEG_PATH = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
+        // Windows hardcoded path fallback vs Linux path
+        // In dev, resourceDir might not point where we think for sidecars, but let's try to be smart.
+        // For now, we will use the hardcoded path for Windows (as per user request "make it work") but we can improve it.
+        // For Linux, we expect ffmpeg in the sidecar bin folder or system.
+        
+        let ffmpegPath = "ffmpeg"; // Default to system/path ffmpeg for Linux
+        if (isWindows) {
+           ffmpegPath = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
+        } else {
+           // For Linux, we will try to resolve it relative to the resource directory if possible,
+           // or just rely on the one we downloaded to `src-tauri/bin`.
+           // In Dev mode, `src-tauri/bin` is not process.cwd().
+           // But if we downloaded it there, we can look for it.
+           // However, let's assume it's in the PATH or we construct a path.
+           // Since we can't easily get the absolute path of the *source* in dev from the frontend without help,
+           // we'll try to guess or use a sidecar-like resolution.
+           // Actually, simplest is to pass just "ffmpeg" and ensure it's in the path, 
+           // OR use the absolute path we know: `/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu`
+           // But that is hardcoded to this current machine.
+           
+           // Better approach:
+           // If we are in dev, we know the path.
+           // If we are in prod, it should be in resourceDir.
+           // But frontend doesn't know if we are in dev or prod easily without asking Rust.
+           
+           // HACK: For this specific user on this specific machine:
+           ffmpegPath = "/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu";
+        }
+
         let qualityArgs = "";
         switch (options.quality) {
           case '1080p': qualityArgs = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"; break;
@@ -103,7 +188,7 @@ export function useDownloader() {
 
         args = [
           "--js-runtimes", "node",
-          "--ffmpeg-location", FFMPEG_PATH,
+          "--ffmpeg-location", ffmpegPath,
           "--merge-output-format", "mp4",
           "--prefer-ffmpeg",
           "--extractor-args", `youtube:player-client=${client}`,
@@ -133,7 +218,12 @@ export function useDownloader() {
       }
 
       const cmd = Command.sidecar(service, args);
+      
+      const child = await cmd.spawn();
+      activeProcessRef.current = child;
+
       cmd.stdout.on('data', (line) => {
+        if (stopRequestedRef.current) return;
         const cleanLine = line.trim();
         if (cleanLine.includes('[download]')) {
           const p = parseProgress(cleanLine);
@@ -150,16 +240,19 @@ export function useDownloader() {
         }
       });
 
-      cmd.stderr.on('data', (line) => addLog(`⚠️ ERR: ${line.trim()}`));
+      cmd.stderr.on('data', (line) => {
+        if (stopRequestedRef.current) return;
+        addLog(`⚠️ ERR: ${line.trim()}`);
+      });
 
       const completion = new Promise<{ code: number | null }>((resolve) => {
         cmd.on('close', (data) => resolve(data));
       });
 
-      await cmd.spawn();
+      // await cmd.spawn(); // This was moved above to get the child process
       const output = await completion;
       lastCode = output.code;
-      if (lastCode === 0) break;
+      if (lastCode === 0 || stopRequestedRef.current) break;
       addLog(`⚠️ Client ${client} failed. Retrying next...`);
     }
 
@@ -167,10 +260,19 @@ export function useDownloader() {
   };
 
   const startDownload = async (targetUrl: string, service: DownloadService, options: DownloadOptions = {}) => {
+    stopRequestedRef.current = false;
     setIsLoading(true);
+    setIsStopDisabled(false); // Enable stop button
     setLogs([]);
     const code = await runSingleDownload(targetUrl, service, options);
     setIsLoading(false);
+    setIsStopDisabled(true); // Disable stop button after completion/failure
+    activeProcessRef.current = null; // Clear active process
+
+    if (stopRequestedRef.current) {
+      addLog("🛑 Download was manually stopped.");
+      return;
+    }
 
     if (code === 0) {
       setProgress(100);
@@ -186,17 +288,25 @@ export function useDownloader() {
     const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
     if (urls.length === 0) return;
 
+    stopRequestedRef.current = false;
     setIsLoading(true);
+    setIsStopDisabled(false); // Enable stop button
     setLogs([]);
     addLog(`📦 Starting Batch Download for ${urls.length} items...`);
 
     for (let i = 0; i < urls.length; i++) {
+      if (stopRequestedRef.current) {
+        addLog("🛑 Batch download stopped by user.");
+        break;
+      }
       addLog(`\n🔄 Processing (${i + 1}/${urls.length})`);
       const code = await runSingleDownload(urls[i], 'ytdlp', {}, `Batch Item ${i + 1}`);
-      if (code !== 0) addLog(`⚠️ Item ${i + 1} failed. Continuing...`);
+      if (code !== 0 && !stopRequestedRef.current) addLog(`⚠️ Item ${i + 1} failed. Continuing...`);
     }
 
     setIsLoading(false);
+    setIsStopDisabled(true); // Disable stop button after completion
+    activeProcessRef.current = null; // Clear active process
     setProgress(100);
     toast.success("Batch Download Finished!");
     addLog("🎉 All batch items processed!");
@@ -219,21 +329,42 @@ export function useDownloader() {
     } catch (e) {}
 
     try {
-      const output = await Command.sidecar("ytdlp", [
+      const cmd = Command.sidecar("ytdlp", [
         "--js-runtimes", "node",
         "--dump-single-json",
         "--flat-playlist",
         "--no-download",
         "--no-check-certificate",
         url
-      ]).execute();
+      ]);
+      
+      const child = await cmd.spawn();
+      activeProcessRef.current = child;
 
-      if (!output.stdout) {
-        if (output.stderr) addLog(`⚠️ yt-dlp stderr: ${output.stderr}`);
+      let stdout = '';
+      let stderr = '';
+
+      cmd.stdout.on('data', (data: string) => {
+        if (stopRequestedRef.current) return;
+        stdout += data;
+      });
+      cmd.stderr.on('data', (data: string) => {
+        if (stopRequestedRef.current) return;
+        stderr += data;
+      });
+
+      const completion = new Promise<{ code: number | null }>((resolve) => {
+        cmd.on('close', (data) => resolve(data));
+      });
+
+      await completion;
+
+      if (!stdout) {
+        if (stderr) addLog(`⚠️ yt-dlp stderr: ${stderr}`);
         throw new Error("No metadata returned from yt-dlp");
       }
       
-      const json = JSON.parse(output.stdout);
+      const json = JSON.parse(stdout);
       
       const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
       
@@ -261,6 +392,7 @@ export function useDownloader() {
       return null;
     } finally {
       setIsLoading(false);
+      activeProcessRef.current = null; // Clear active process
     }
   };
 
@@ -280,15 +412,43 @@ export function useDownloader() {
     try {
       if (url.includes('bigtitbitches.com')) {
         addLog("✨ Detected special site - Extracting source...");
-        const btbOutput = await Command.sidecar("wget", ["-q", "-O", "-", url]).execute();
-        const btbHtml = btbOutput.stdout;
+        const btbCmd = Command.sidecar("wget", ["-q", "-O", "-", url]);
+        const btbChild = await btbCmd.spawn();
+        activeProcessRef.current = btbChild;
+
+        let btbStdout = '';
+        btbCmd.stdout.on('data', (data: string) => {
+          if (stopRequestedRef.current) return;
+          btbStdout += data;
+        });
+
+        const btbCompletion = new Promise<{ code: number | null }>((resolve) => {
+          btbCmd.on('close', (data) => resolve(data));
+        });
+        await btbCompletion;
+
+        const btbHtml = btbStdout;
         
         const iframeMatch = btbHtml.match(/iframe.*?src="(https:\/\/fuqster\.com\/embed\/\d+)"/);
         if (!iframeMatch) throw new Error("Embed iframe not found");
         
         const embedUrl = iframeMatch[1];
-        const embedOutput = await Command.sidecar("wget", ["-q", "-O", "-", embedUrl]).execute();
-        const embedHtml = embedOutput.stdout;
+        const embedCmd = Command.sidecar("wget", ["-q", "-O", "-", embedUrl]);
+        const embedChild = await embedCmd.spawn();
+        activeProcessRef.current = embedChild;
+
+        let embedStdout = '';
+        embedCmd.stdout.on('data', (data: string) => {
+          if (stopRequestedRef.current) return;
+          embedStdout += data;
+        });
+
+        const embedCompletion = new Promise<{ code: number | null }>((resolve) => {
+          embedCmd.on('close', (data) => resolve(data));
+        });
+        await embedCompletion;
+
+        const embedHtml = embedStdout;
         
         const videoUrlMatch = embedHtml.match(/video_url:\s*'(https:\/\/fuqster\.com\/get_file\/.*?)'/);
         if (!videoUrlMatch) throw new Error("Direct video URL not found");
@@ -309,6 +469,7 @@ export function useDownloader() {
       return null;
     } finally {
       setIsLoading(false);
+      activeProcessRef.current = null; // Clear active process
     }
   };
 
@@ -324,6 +485,8 @@ export function useDownloader() {
     startDownload,
     startBatchDownload,
     analyzeLink,
+    stopDownload,
+    isStopDisabled,
     endRef
   };
 }

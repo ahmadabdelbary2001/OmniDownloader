@@ -10,6 +10,7 @@
     "dialog:default",
     "fs:default",
     "shell:default",
+    "shell:allow-kill",
     {
       "identifier": "shell:allow-execute",
       "allow": [
@@ -24,6 +25,17 @@
           "cmd": "wget",
           "sidecar": true,
           "args": true
+        },
+        {
+          "name": "taskkill",
+          "cmd": "taskkill",
+          "args": [
+            { "pattern": "/F" },
+            { "pattern": "/T" },
+            { "pattern": "/PID" },
+            { "pattern": "/IM" },
+            { "pattern": ".*" }
+          ]
         }
       ]
     },

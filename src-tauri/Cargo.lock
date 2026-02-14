@@ -2265,6 +2265,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "omni_downloader"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "rand 0.8.5",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-shell",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5160,22 +5176,6 @@ dependencies = [
  "quote",
  "syn 2.0.111",
  "synstructure",
-]
-
-[[package]]
-name = "yt-dlp-desktop"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "rand 0.8.5",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-shell",
 ]
 
 [[package]]

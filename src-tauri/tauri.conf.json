@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "yt-dlp-desktop",
-  "version": "0.1.0",
-  "identifier": "com.ytdlp.desktop",
+  "productName": "OmniDownloader",
+  "version": "1.0.0",
+  "identifier": "com.omnidownloader.main",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "yt-dlp-desktop",
+        "title": "OmniDownloader",
         "width": 1000,
         "height": 800
       }
@@ -27,14 +27,47 @@
   "plugins": {},
   "bundle": {
     "active": true,
-    "externalBin": ["ytdlp", "wget"],
-    "targets": "all",
+    "externalBin": [
+      "ytdlp",
+      "wget"
+    ],
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Ahmad Abdelbary",
+    "copyright": "Copyright © 2026 Ahmad Abdelbary. All rights reserved.",
+    "category": "Utility",
+    "shortDescription": "Universal video downloader supporting multiple platforms",
+    "longDescription": "OmniDownloader is a powerful and easy-to-use application for downloading videos from various platforms including YouTube, Facebook, Instagram, and more. Features include batch downloads, format selection, and subtitle support.",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": {
+        "language": ["en-US", "ar-SA"],
+        "template": null,
+        "fragmentPaths": [],
+        "componentRefs": [],
+        "featureRefs": [],
+        "mergeRefs": []
+      },
+      "nsis": {
+        "headerImage": null,
+        "sidebarImage": null,
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "languages": ["English", "Arabic"],
+        "displayLanguageSelector": true,
+        "compression": "lzma",
+        "startMenuFolder": "OmniDownloader",
+        "installerHooks": null,
+        "minimumWebview2Version": null
+      }
+    }
   }
 }

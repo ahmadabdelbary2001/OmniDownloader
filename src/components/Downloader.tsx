@@ -23,6 +23,8 @@ export function Downloader() {
     startDownload,
     startBatchDownload,
     analyzeLink,
+    stopDownload,
+    isStopDisabled,
     endRef
   } = useDownloader();
 
@@ -61,7 +63,7 @@ export function Downloader() {
              <Download className="w-8 h-8 text-blue-500" />
              OmniDownloader
            </h1>
-           <p className="text-muted-foreground text-sm mt-1">Universal Media & File Downloader (V2.0 Refactored)</p>
+           <p className="text-muted-foreground text-sm mt-1">Universal Media & File Downloader</p>
         </div>
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
            <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`} />
@@ -101,6 +103,8 @@ export function Downloader() {
                   metadata={metadata}
                   onAnalyze={onAnalyze} 
                   onDownload={(u, opts) => startDownload(u, 'ytdlp', opts)} 
+                  onStop={stopDownload}
+                  isStopDisabled={isStopDisabled}
                   isLoading={isLoading} 
                 />
               </TabsContent>
@@ -110,6 +114,8 @@ export function Downloader() {
                   batchUrls={batchUrls} 
                   setBatchUrls={setBatchUrls} 
                   onDownload={startBatchDownload} 
+                  onStop={stopDownload}
+                  isStopDisabled={isStopDisabled}
                   isLoading={isLoading} 
                 />
               </TabsContent>
@@ -123,6 +129,8 @@ export function Downloader() {
                   referer={wgetReferer} 
                   setReferer={setWgetReferer} 
                   onDownload={(u, opts) => startDownload(u, 'wget', opts)} 
+                  onStop={stopDownload}
+                  isStopDisabled={isStopDisabled}
                   isLoading={isLoading} 
                 />
               </TabsContent>
@@ -135,6 +143,8 @@ export function Downloader() {
             logs={logs} 
             progress={progress} 
             onClear={() => setLogs([])} 
+            onStop={stopDownload}
+            isStopDisabled={isStopDisabled}
             endRef={endRef as React.RefObject<HTMLDivElement>} 
           />
         </div>

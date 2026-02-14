@@ -17,6 +17,8 @@ interface DirectTabProps {
   metadata: MediaMetadata | null;
   onAnalyze: (url: string) => void;
   onDownload: (url: string, options: { playlistItems: string, quality: VideoQuality }) => void;
+  onStop: () => void;
+  isStopDisabled: boolean;
   isLoading: boolean;
 }
 
@@ -25,7 +27,7 @@ export function DirectTab({
   playlistItems, setPlaylistItems, 
   quality, setQuality,
   isPlaylist, metadata,
-  onAnalyze, onDownload, isLoading 
+  onAnalyze, onDownload, onStop, isStopDisabled, isLoading 
 }: DirectTabProps) {
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [rangeFrom, setRangeFrom] = useState('');
@@ -284,9 +286,25 @@ export function DirectTab({
           </div>
         )}
 
-        <Button onClick={() => onDownload(url, { playlistItems, quality })} disabled={isLoading || !url} className="h-14 w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold shadow-2xl shadow-blue-600/30 text-base uppercase tracking-widest shrink-0">
-          <Download className="w-5 h-5" /> Start Processing {metadata?.isPlaylist ? 'Playlist' : 'Download'}
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button 
+            onClick={() => onDownload(url, { playlistItems, quality })} 
+            disabled={isLoading || !url} 
+            className="h-14 flex-1 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold shadow-2xl shadow-blue-600/30 text-base uppercase tracking-widest"
+          >
+            <Download className="w-5 h-5" /> {isLoading ? 'Processing...' : (playlistItems ? 'Resume / Start Download' : 'Start Processing')}
+          </Button>
+          
+          {!isStopDisabled && (
+            <Button 
+              onClick={onStop} 
+              variant="destructive"
+              className="h-14 px-8 font-black uppercase tracking-tighter animate-in slide-in-from-right-4"
+            >
+              STOP
+            </Button>
+          )}
+        </div>
     </div>
   );
 }
