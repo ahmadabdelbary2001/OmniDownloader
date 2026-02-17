@@ -3,7 +3,7 @@ import { Command } from '@tauri-apps/plugin-shell';
 import { path } from '@tauri-apps/api';
 import { mkdir, exists } from '@tauri-apps/plugin-fs';
 import { toast } from "sonner";
-import { SearchResult, DownloadService, DownloadOptions, MediaMetadata } from '../types/downloader';
+import { SearchResult, DownloadService, DownloadOptions, MediaMetadata, DownloadTask } from '../types/downloader';
 
 export function useDownloader() {
   const [logs, setLogs] = useState<string[]>([]);
@@ -11,6 +11,30 @@ export function useDownloader() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [tasks, setTasks] = useState<DownloadTask[]>(() => {
+    const saved = localStorage.getItem('omni_tasks');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Reset volatile statuses that don't survive restart
+        return parsed.map((t: DownloadTask) => {
+          if (t.status === 'downloading' || t.status === 'analyzing') {
+            return { ...t, status: 'paused' };
+          }
+          return t;
+        });
+      } catch (e) {
+        console.error("Failed to parse saved tasks", e);
+        return [];
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('omni_tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
   const [isStopDisabled, setIsStopDisabled] = useState(true);
   const activeProcessRef = useRef<any>(null);
   const stopRequestedRef = useRef<boolean>(false);
@@ -58,8 +82,24 @@ export function useDownloader() {
   };
 
   const parseProgress = (line: string) => {
-    const match = line.match(/(\d+\.?\d*)%/);
-    return match ? parseFloat(match[1]) : null;
+    // yt-dlp patterns: 
+    // [download]  12.3% of 10.00MiB at  2.41MiB/s ETA 00:04
+    // [download]  12.3% of ~10.00MiB at  2.41MiB/s ETA 00:04
+    const percentMatch = line.match(/(\d+\.?\d*)%/);
+    const sizeMatch = line.match(/of\s+(~?\d+\.?\d*[KMGT]iB)/);
+    const speedMatch = line.match(/at\s+(\d+\.?\d*[KMGT]iB\/s)/);
+    const etaMatch = line.match(/ETA\s+(\d+:\d+)/);
+
+    return {
+      percent: percentMatch ? parseFloat(percentMatch[1]) : null,
+      size: sizeMatch ? sizeMatch[1].replace('~', '') : undefined,
+      speed: speedMatch ? speedMatch[1] : undefined,
+      eta: etaMatch ? etaMatch[1] : undefined
+    };
+  };
+
+  const updateTask = (id: string, updates: Partial<DownloadTask>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
   const handleSearch = async (query: string) => {
@@ -167,9 +207,14 @@ export function useDownloader() {
     targetUrl: string, 
     service: DownloadService, 
     options: DownloadOptions = {},
+    taskId?: string,
     label?: string
   ): Promise<number | null> => {
     const downloadDir = options.downloadPath || baseDownloadPath || (await path.downloadDir());
+    
+    if (taskId) {
+      updateTask(taskId, { status: 'downloading' });
+    }
     
     // Ensure the specific download directory exists
     try {
@@ -269,7 +314,17 @@ export function useDownloader() {
         const cleanLine = line.trim();
         if (cleanLine.includes('[download]')) {
           const p = parseProgress(cleanLine);
-          if (p !== null) setProgress(p);
+          if (p.percent !== null) {
+            setProgress(p.percent);
+            if (taskId) {
+              updateTask(taskId, { 
+                progress: p.percent, 
+                speed: p.speed, 
+                size: p.size,
+                eta: p.eta 
+              });
+            }
+          }
           setLogs(prev => {
             const last = prev[prev.length - 1];
             if (last && last.startsWith('[download]') && cleanLine.startsWith('[download]')) {
@@ -301,26 +356,55 @@ export function useDownloader() {
     return lastCode;
   };
 
-  const startDownload = async (targetUrl: string, service: DownloadService, options: DownloadOptions = {}) => {
+  const addTask = async (url: string, service: DownloadService, options: DownloadOptions, title: string, thumbnail?: string) => {
+    const id = Math.random().toString(36).substring(2, 11);
+    const newTask: DownloadTask = {
+      id,
+      url,
+      title,
+      status: 'waiting',
+      progress: 0,
+      service,
+      options,
+      createdAt: Date.now(),
+      thumbnail
+    };
+    setTasks(prev => [newTask, ...prev]);
+    return id;
+  };
+
+  const startDownload = async (targetUrl: string, service: DownloadService, options: DownloadOptions = {}, existingTaskId?: string) => {
+    let taskId = existingTaskId;
+    
+    if (!taskId) {
+      // If we don't have a task ID, we probably need metadata first to get title/thumb
+      // but if we are just starting directly, we can use URL as title for now
+      taskId = await addTask(targetUrl, service, options, targetUrl);
+    }
+
     stopRequestedRef.current = false;
     setIsLoading(true);
-    setIsStopDisabled(false); // Enable stop button
-    setLogs([]);
-    const code = await runSingleDownload(targetUrl, service, options);
+    setIsStopDisabled(false);
+    
+    const code = await runSingleDownload(targetUrl, service, options, taskId);
+    
     setIsLoading(false);
-    setIsStopDisabled(true); // Disable stop button after completion/failure
-    activeProcessRef.current = null; // Clear active process
+    setIsStopDisabled(true);
+    activeProcessRef.current = null;
 
     if (stopRequestedRef.current) {
+      updateTask(taskId, { status: 'paused' });
       addLog("🛑 Download was manually stopped.");
       return;
     }
 
     if (code === 0) {
       setProgress(100);
+      updateTask(taskId, { status: 'completed', progress: 100, speed: undefined, eta: undefined });
       toast.success("Download Finished!");
       addLog("🎉 Process completed successfully!");
     } else {
+      updateTask(taskId, { status: 'failed' });
       toast.error("Download Failed");
       addLog(`❌ Process failed with code: ${code}`);
     }
@@ -526,6 +610,10 @@ export function useDownloader() {
     isStopDisabled,
     endRef,
     baseDownloadPath,
-    setBaseDownloadPath: updateBaseDownloadPath
+    setBaseDownloadPath: updateBaseDownloadPath,
+    tasks,
+    setTasks,
+    addTask,
+    getMediaMetadata
   };
 }

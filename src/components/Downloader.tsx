@@ -1,233 +1,255 @@
 import { useState } from 'react';
-import { Download, Globe, List, Terminal, Search, Link as LinkIcon, Layers, FileDown, Folder } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { 
+  Download, Terminal, Search, Folder, Plus, Pause, Trash2, 
+  Clock, CheckCircle2, AlertCircle, Info, LayoutGrid
+} from 'lucide-react';
 import { toast } from "sonner";
 import { open } from '@tauri-apps/plugin-dialog';
 
 import { useDownloader } from '../hooks/useDownloader';
+import { DownloadTable } from './downloader/DownloadTable';
+import { SmartAddDialog } from './downloader/SmartAddDialog';
 import { SearchTab } from './downloader/SearchTab';
-import { DirectTab } from './downloader/DirectTab';
-import { BatchTab } from './downloader/BatchTab';
-import { WgetTab } from './downloader/WgetTab';
 import { LogViewer } from './downloader/LogViewer';
-import { VideoQuality, MediaMetadata } from '../types/downloader';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Button } from './ui/button';
+import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
+import { Badge } from './ui/badge';
 
 export function Downloader() {
   const {
     logs,
     setLogs,
     progress,
-    isLoading,
     isSearching,
     searchResults,
     handleSearch,
     startDownload,
-    startBatchDownload,
     analyzeLink,
     stopDownload,
     isStopDisabled,
     endRef,
     baseDownloadPath,
-    setBaseDownloadPath
+    setBaseDownloadPath,
+    tasks,
+    setTasks,
+    addTask
   } = useDownloader();
 
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isLogsOpen, setIsLogsOpen] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'downloading' | 'completed' | 'failed'>('all');
+
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'all') return true;
+    return task.status === filter || (filter === 'downloading' && task.status === 'waiting');
+  });
+
   const handleSelectDefaultPath = async () => {
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        defaultPath: baseDownloadPath
-      });
-      if (selected && typeof selected === 'string') {
-        setBaseDownloadPath(selected);
-        toast.success("Default download path updated!");
-      }
-    } catch (e) {
-      toast.error("Failed to select folder");
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: baseDownloadPath
+    });
+    if (selected && typeof selected === 'string') {
+      setBaseDownloadPath(selected);
+      toast.success("Default storage updated");
     }
   };
 
-  const [url, setUrl] = useState('');
-  const [batchUrls, setBatchUrls] = useState('');
-  const [activeTab, setActiveTab] = useState('search');
-  const [playlistItems, setPlaylistItems] = useState('');
-  const [quality, setQuality] = useState<VideoQuality>('best');
-  const [isPlaylist, setIsPlaylist] = useState(false);
-  const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
-  const [wgetFilename, setWgetFilename] = useState('');
-  const [wgetReferer, setWgetReferer] = useState('');
-  const [directPath, setDirectPath] = useState('');
-  const [batchPath, setBatchPath] = useState('');
-  const [wgetPath, setWgetPath] = useState('');
+  const handleRemoveTask = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
 
-  const handleSelectPath = async (setter: (p: string) => void) => {
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false
-      });
-      if (selected && typeof selected === 'string') {
-        setter(selected);
-        toast.success("Download location selected for this task.");
-      }
-    } catch (e) {
-      toast.error("Failed to select folder");
+  const handlePauseTask = () => {
+    // Current simple implementation just stops the process
+    stopDownload();
+  };
+
+  const handleResumeTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+        startDownload(task.url, task.service, task.options, id);
     }
   };
 
-  const onAnalyze = async (inputUrl: string) => {
-    const result = await analyzeLink(inputUrl);
-    if (result) {
-      if (result.embedUrl) {
-        setUrl(result.directUrl);
-        setWgetReferer(result.embedUrl);
-        setWgetFilename("video.mp4");
-        setActiveTab('wget');
-        toast.success("Link analyzed! switched to Wget tab.");
-      } else {
-        setIsPlaylist(result.isPlaylist);
-        setMetadata(result.metadata || null);
-        toast.info(result.isPlaylist ? "Playlist detected! Items field unlocked." : "Single video analyzed.");
-      }
+  const handleOpenFolder = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+        const path = task.options.downloadPath || baseDownloadPath;
+        toast.info(`Location: ${path}`);
+        // Future: Add platform-specific folder opening command (explorer/xdg-open)
     }
   };
 
   return (
-    <div className="flex flex-col h-full gap-6 p-6 overflow-hidden max-w-6xl mx-auto w-full">
-      <div className="shrink-0 flex items-center justify-between">
-        <div>
-           <h1 className="flex items-center gap-3 text-3xl font-extrabold tracking-tight text-white">
-             <Download className="w-8 h-8 text-blue-500" />
-             OmniDownloader
-           </h1>
-           <p className="text-muted-foreground text-sm mt-1">Universal Media & File Downloader</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div 
-                  onClick={handleSelectDefaultPath}
-                  className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-blue-500/50 transition-all cursor-pointer group"
-                >
-                  <Folder className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-                  <div className="flex flex-col">
-                    <span className="text-[9px] uppercase font-black tracking-widest text-white/30 truncate max-w-[150px]">Default Save Path</span>
-                    <span className="text-[11px] font-bold text-white/70 truncate max-w-[200px]">{baseDownloadPath.split(/[\\/]/).pop() || 'Downloads'}</span>
-                  </div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 border-white/10 text-white text-[10px]">
-                {baseDownloadPath} (Click to change)
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+    <div className="flex flex-col h-screen bg-slate-950 text-white overflow-hidden">
+      {/* Top Toolbar - IDM Style */}
+      <div className="shrink-0 h-20 bg-slate-900 border-b border-white/5 flex items-center px-6 justify-between shadow-2xl z-10">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <h1 className="text-lg font-black tracking-tighter flex items-center gap-2">
+              <div className="p-1.5 bg-blue-600 rounded-lg">
+                <Download className="w-5 h-5 text-white" />
+              </div>
+              OMNI<span className="text-blue-500">DOWNLOADER</span>
+            </h1>
+            <p className="text-[9px] uppercase font-bold tracking-[3px] text-white/30 text-center">Version 2.0 Pro</p>
+          </div>
 
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-             <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`} />
-             <span className="text-[10px] uppercase font-bold tracking-widest text-white/70">{isLoading ? 'Processing' : 'System Ready'}</span>
+          <div className="h-10 w-px bg-white/5 mx-2" />
+
+          <div className="flex items-center gap-1">
+            <Button 
+                onClick={() => setIsAddDialogOpen(true)}
+                className="flex-col h-16 border-none bg-transparent hover:bg-white/5 text-white/60 hover:text-blue-400 gap-1 px-4"
+            >
+                <Plus className="w-5 h-5" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Add URL</span>
+            </Button>
+
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button className="flex-col h-16 border-none bg-transparent hover:bg-white/5 text-white/60 hover:text-cyan-400 gap-1 px-4">
+                  <Search className="w-5 h-5" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Search</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[80vh] bg-slate-950 border-white/5 p-0">
+                <SearchTab 
+                    onSearch={handleSearch}
+                    isSearching={isSearching}
+                    searchResults={searchResults}
+                    onDownload={(u) => {
+                        // For search results, we open the add dialog with the URL
+                        // setIsAddDialogOpen(true);
+                        // setUrl(u);
+                        // Future: Auto-analyze results
+                        startDownload(u, 'ytdlp');
+                        toast.success("Added to manager!");
+                    }}
+                />
+              </SheetContent>
+            </Sheet>
+
+            <Button 
+                onClick={stopDownload}
+                disabled={isStopDisabled}
+                className="flex-col h-16 border-none bg-transparent hover:bg-white/5 text-white/60 hover:text-red-400 gap-1 px-4 disabled:opacity-20"
+            >
+                <Pause className="w-5 h-5" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Stop All</span>
+            </Button>
+
+            <Button 
+                onClick={() => setTasks([])}
+                className="flex-col h-16 border-none bg-transparent hover:bg-white/5 text-white/60 hover:text-red-500 gap-1 px-4"
+            >
+                <Trash2 className="w-5 h-5" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Clear List</span>
+            </Button>
           </div>
         </div>
-      </div>
 
-      <div className="grid flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-12">
-        <div className="flex flex-col gap-6 lg:col-span-7 overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full overflow-hidden">
-            <TabsList className="grid w-full grid-cols-4 bg-slate-900/40 border border-white/10 backdrop-blur-md">
-              <TabsTrigger value="search" className="gap-2 data-[state=active]:bg-blue-600"><Search className="w-4 h-4" /> Search</TabsTrigger>
-              <TabsTrigger value="direct" className="gap-2 data-[state=active]:bg-blue-600"><LinkIcon className="w-4 h-4" /> Direct</TabsTrigger>
-              <TabsTrigger value="batch" className="gap-2 data-[state=active]:bg-blue-600"><Layers className="w-4 h-4" /> Batch</TabsTrigger>
-              <TabsTrigger value="wget" className="gap-2 data-[state=active]:bg-blue-600"><FileDown className="w-4 h-4" /> Wget</TabsTrigger>
-            </TabsList>
-            
-            <div className="flex-1 mt-4 overflow-hidden border rounded-xl bg-black/40 border-white/10 backdrop-blur-xl">
-              <TabsContent value="search" className="h-full m-0 overflow-hidden">
-                <SearchTab 
-                  onSearch={handleSearch} 
-                  isSearching={isSearching} 
-                  searchResults={searchResults} 
-                  onDownload={(u) => startDownload(u, 'ytdlp')} 
-                />
-              </TabsContent>
-
-              <TabsContent value="direct" className="h-full m-0 overflow-hidden">
-                <DirectTab 
-                  url={url} 
-                  setUrl={setUrl} 
-                  playlistItems={playlistItems} 
-                  setPlaylistItems={setPlaylistItems} 
-                  quality={quality}
-                  setQuality={setQuality}
-                  isPlaylist={isPlaylist}
-                  metadata={metadata}
-                  onAnalyze={onAnalyze} 
-                  onDownload={(u, opts) => startDownload(u, 'ytdlp', opts)} 
-                  onStop={stopDownload}
-                  isStopDisabled={isStopDisabled}
-                  isLoading={isLoading} 
-                  customPath={directPath}
-                  onSelectPath={() => handleSelectPath(setDirectPath)}
-                />
-              </TabsContent>
-
-              <TabsContent value="batch" className="h-full m-0 overflow-hidden">
-                <BatchTab 
-                  batchUrls={batchUrls} 
-                  setBatchUrls={setBatchUrls} 
-                  onDownload={(urls) => startBatchDownload(urls, { downloadPath: batchPath || undefined })} 
-                  onStop={stopDownload}
-                  isStopDisabled={isStopDisabled}
-                  isLoading={isLoading} 
-                  customPath={batchPath}
-                  onSelectPath={() => handleSelectPath(setBatchPath)}
-                />
-              </TabsContent>
-
-              <TabsContent value="wget" className="h-full m-0 overflow-hidden">
-                <WgetTab 
-                  url={url} 
-                  setUrl={setUrl} 
-                  filename={wgetFilename} 
-                  setFilename={setWgetFilename} 
-                  referer={wgetReferer} 
-                  setReferer={setWgetReferer} 
-                  onDownload={(u, opts) => startDownload(u, 'wget', { ...opts, downloadPath: wgetPath || undefined })} 
-                  onStop={stopDownload}
-                  isStopDisabled={isStopDisabled}
-                  isLoading={isLoading} 
-                  customPath={wgetPath}
-                  onSelectPath={() => handleSelectPath(setWgetPath)}
-                />
-              </TabsContent>
+        <div className="flex items-center gap-4">
+            <div 
+                onClick={handleSelectDefaultPath}
+                className="flex items-center gap-3 px-4 py-2 bg-black/40 border border-white/5 rounded-xl cursor-pointer hover:border-blue-500/50 transition-all group"
+            >
+                <Folder className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                <div className="flex flex-col">
+                    <span className="text-[8px] font-black uppercase text-white/20 tracking-widest">Storage</span>
+                    <span className="text-[10px] font-bold text-white/60 truncate max-w-[150px]">{baseDownloadPath.split(/[\\/]/).pop() || 'Downloads'}</span>
+                </div>
             </div>
-          </Tabs>
+
+            <Button onClick={() => setIsLogsOpen(!isLogsOpen)} variant="outline" className={`h-10 w-10 p-0 rounded-xl ${isLogsOpen ? 'bg-blue-600 border-blue-600 text-white' : 'text-white/20 border-white/5'}`}>
+                <Terminal className="w-5 h-5" />
+            </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar Filters */}
+        <div className="w-64 bg-slate-900/50 border-r border-white/5 p-6 flex flex-col gap-8 shrink-0">
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black uppercase tracking-[3px] text-white/20 px-2">Categories</h3>
+            <div className="space-y-1">
+              {[
+                { id: 'all', label: 'All Downloads', icon: LayoutGrid },
+                { id: 'downloading', label: 'In Progress', icon: Clock },
+                { id: 'completed', label: 'Finished', icon: CheckCircle2 },
+                { id: 'failed', label: 'Unfinished', icon: AlertCircle },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setFilter(item.id as any)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${
+                    filter === item.id 
+                    ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' 
+                    : 'text-white/40 hover:text-white/60 hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-xs font-bold">{item.label}</span>
+                  </div>
+                  <Badge variant="ghost" className="text-[10px] p-0 px-1 opacity-40">{tasks.filter(t => item.id === 'all' || t.status === item.id || (item.id === 'downloading' && t.status === 'waiting')).length}</Badge>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-auto p-4 rounded-xl bg-gradient-to-br from-blue-600/10 to-indigo-600/10 border border-blue-500/10 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+                <Info className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Smart Engine</span>
+            </div>
+            <p className="text-[10px] text-blue-200/40 leading-relaxed font-medium">Automatic protocol detection active. Supports YT, Telegram & Direct links.</p>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-6 lg:col-span-5 overflow-hidden">
-          <LogViewer 
-            logs={logs} 
-            progress={progress} 
-            onClear={() => setLogs([])} 
-            onStop={stopDownload}
-            isStopDisabled={isStopDisabled}
-            endRef={endRef as React.RefObject<HTMLDivElement>} 
-          />
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col bg-black/20 overflow-hidden relative">
+           <DownloadTable 
+             tasks={filteredTasks}
+             onRemove={handleRemoveTask}
+             onPause={handlePauseTask}
+             onResume={handleResumeTask}
+             onOpenFolder={handleOpenFolder}
+           />
+
+           {/* Small mini-logs at bottom if open */}
+           {isLogsOpen && (
+             <div className="absolute inset-x-0 bottom-0 h-1/3 border-t border-white/10 shadow-2xl z-20">
+                <LogViewer 
+                    logs={logs}
+                    progress={progress}
+                    onClear={() => setLogs([])}
+                    onStop={stopDownload}
+                    isStopDisabled={isStopDisabled}
+                    endRef={endRef as React.RefObject<HTMLDivElement>}
+                />
+             </div>
+           )}
         </div>
       </div>
-      
-      <div className="shrink-0 flex items-center justify-center gap-6 py-2">
-         {[
-           { icon: Globe, label: "Multi-Site Protocol" },
-           { icon: List, label: "Playlist Engine" },
-           { icon: Terminal, label: "Real-time Stream" }
-         ].map((item, i) => (
-           <div key={i} className="flex items-center gap-1.5 grayscale opacity-20 hover:grayscale-0 hover:opacity-50 transition-all cursor-default">
-              <item.icon className="w-3 h-3" />
-              <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
-           </div>
-         ))}
-      </div>
+
+      {/* Dialogs */}
+      <SmartAddDialog 
+        isOpen={isAddDialogOpen}
+        onClose={() => setIsAddDialogOpen(false)}
+        onAnalyze={analyzeLink}
+        onAdd={(u, s, o, t, th) => {
+            addTask(u, s, o, t, th).then(id => {
+                startDownload(u, s, o, id);
+            });
+        }}
+        defaultPath={baseDownloadPath}
+        onSelectPath={async () => {
+            const selected = await open({ directory: true, multiple: false });
+            return selected as string || undefined;
+        }}
+      />
     </div>
   );
 }

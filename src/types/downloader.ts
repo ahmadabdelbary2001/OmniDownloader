@@ -18,6 +18,24 @@ export interface DownloadOptions {
   downloadPath?: string;
 }
 
+export type TaskStatus = 'analyzing' | 'waiting' | 'downloading' | 'paused' | 'completed' | 'failed';
+
+export interface DownloadTask {
+  id: string;
+  url: string;
+  title: string;
+  status: TaskStatus;
+  progress: number;
+  speed?: string;
+  size?: string;
+  downloaded?: string;
+  eta?: string;
+  service: DownloadService;
+  options: DownloadOptions;
+  createdAt: number;
+  thumbnail?: string;
+}
+
 export interface PlaylistEntry {
   id: string;
   title: string;
