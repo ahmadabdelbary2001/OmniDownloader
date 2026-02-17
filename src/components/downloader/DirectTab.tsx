@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Download, Check, ListChecks, Hash, ArrowRight } from 'lucide-react';
+import { Download, Check, ListChecks, Hash, ArrowRight, Play, Youtube } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { VideoQuality, MediaMetadata } from '../../types/downloader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ScrollArea } from '../ui/scroll-area';
+import { VideoPlayer } from './VideoPlayer';
 
 interface DirectTabProps {
   url: string;
@@ -33,6 +34,7 @@ export function DirectTab({
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
   const [selectionMode, setSelectionMode] = useState<'checkbox' | 'range'>('checkbox');
+  const [playingVideo, setPlayingVideo] = useState<{ url: string; title: string } | null>(null);
 
   // Sync the playlistItems string whenever selection changes
   useEffect(() => {
@@ -104,7 +106,7 @@ export function DirectTab({
   };
 
   return (
-    <div className="flex flex-col h-full p-6 m-0 space-y-6 overflow-hidden">
+    <div className="flex flex-col h-full p-6 m-0 space-y-6 overflow-hidden relative">
         <div className="space-y-2 shrink-0">
           <label className="text-[10px] font-black text-blue-400 uppercase tracking-[2px]">Direct Media/Site URL</label>
           <div className="flex gap-2">
@@ -121,7 +123,7 @@ export function DirectTab({
         </div>
 
         {metadata && (
-          <div className="flex gap-4 p-3 shrink-0 rounded-lg bg-white/5 border border-white/10 animate-in fade-in slide-in-from-top-2">
+          <div className="flex gap-4 p-3 shrink-0 rounded-lg bg-white/5 border border-white/10 animate-in fade-in slide-in-from-top-2 relative group/meta">
             {(() => {
               const targetEntry = metadata.entries?.find(e => 
                 (metadata.requestedVideoId && e.id === metadata.requestedVideoId) || 
@@ -129,22 +131,35 @@ export function DirectTab({
               );
               const displayThumbnail = targetEntry?.thumbnail || metadata.thumbnail;
               const displayTitle = targetEntry?.title || metadata.title;
+              const displayUrl = targetEntry?.url || url;
               const isTargeted = !!targetEntry;
 
               return (
                 <>
-                  <img 
-                    src={displayThumbnail} 
-                    className="w-24 aspect-video object-cover rounded border border-white/10" 
-                    alt="thumb" 
-                  />
+                  <div className="relative shrink-0 w-24 aspect-video rounded overflow-hidden border border-white/10 group/thumb">
+                      <img 
+                        src={displayThumbnail} 
+                        className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-500" 
+                        alt="thumb" 
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                          <Button size="icon" variant="ghost" onClick={() => setPlayingVideo({ url: displayUrl, title: displayTitle })} className="rounded-full h-8 w-8 bg-blue-600/80 hover:bg-blue-600 text-white scale-75 group-hover/thumb:scale-100 transition-transform">
+                            <Play className="w-3 h-3" />
+                          </Button>
+                      </div>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-1">
                       {isPlaylist && isTargeted ? 'Detected Video in Playlist' : 'Detected Content'}
                     </p>
-                    <h4 className="text-xs font-bold text-white truncate">
-                      {displayTitle}
-                    </h4>
+                    <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-bold text-white truncate flex-1">
+                          {displayTitle}
+                        </h4>
+                        <Button size="sm" variant="ghost" onClick={() => setPlayingVideo({ url: displayUrl, title: displayTitle })} className="h-6 px-2 gap-1 text-[9px] font-black bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-600/20 transition-all opacity-0 group-meta:opacity-100">
+                          <Youtube className="w-3 h-3" /> WATCH
+                        </Button>
+                    </div>
                     <p className="text-[10px] text-white/40 mt-1">
                       {isPlaylist ? `📁 Playlist (${metadata.entries?.length || 0} videos)` : '🎬 Single video detected'}
                       {isPlaylist && isTargeted && ` • Targeted Video #${targetEntry.index}`}
@@ -305,6 +320,14 @@ export function DirectTab({
             </Button>
           )}
         </div>
+
+        {playingVideo && (
+            <VideoPlayer 
+                url={playingVideo.url} 
+                title={playingVideo.title} 
+                onClose={() => setPlayingVideo(null)} 
+            />
+        )}
     </div>
   );
 }
