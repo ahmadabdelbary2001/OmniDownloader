@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
 import { path } from '@tauri-apps/api';
+import { mkdir, exists } from '@tauri-apps/plugin-fs';
 import { toast } from "sonner";
 import { SearchResult, DownloadService, DownloadOptions, MediaMetadata } from '../types/downloader';
 
@@ -23,6 +24,38 @@ export function useDownloader() {
   const addLog = useCallback((msg: string) => {
     setLogs(prev => [...prev, msg].slice(-1000));
   }, []);
+
+  const [baseDownloadPath, setBaseDownloadPath] = useState<string>(localStorage.getItem('omni_base_path') || '');
+
+  // Initialize and ensure default directory exists
+  useEffect(() => {
+    const initPath = async () => {
+      try {
+        let current = localStorage.getItem('omni_base_path');
+        if (!current) {
+          const downloads = await path.downloadDir();
+          current = await path.join(downloads, 'OmniDownloader');
+          localStorage.setItem('omni_base_path', current);
+          setBaseDownloadPath(current);
+        }
+        
+        // Ensure directory exists
+        const isExists = await exists(current);
+        if (!isExists) {
+          await mkdir(current, { recursive: true });
+          addLog(`📁 Created default download folder: ${current}`);
+        }
+      } catch (e) {
+        console.error("Failed to init download path:", e);
+      }
+    };
+    initPath();
+  }, []);
+
+  const updateBaseDownloadPath = (newPath: string) => {
+    setBaseDownloadPath(newPath);
+    localStorage.setItem('omni_base_path', newPath);
+  };
 
   const parseProgress = (line: string) => {
     const match = line.match(/(\d+\.?\d*)%/);
@@ -136,7 +169,16 @@ export function useDownloader() {
     options: DownloadOptions = {},
     label?: string
   ): Promise<number | null> => {
-    const downloadDir = await path.downloadDir();
+    const downloadDir = options.downloadPath || baseDownloadPath || (await path.downloadDir());
+    
+    // Ensure the specific download directory exists
+    try {
+      if (!(await exists(downloadDir))) {
+        await mkdir(downloadDir, { recursive: true });
+        addLog(`📁 Created directory: ${downloadDir}`);
+      }
+    } catch (e) {}
+
     const smartLabel = label || (targetUrl.includes('t.me/') ? 'Telegram Link' : 'Direct Link');
     const clients = service === 'ytdlp' ? ['web_embedded,mweb', 'android,web', 'ios'] : ['default'];
     let lastCode: number | null = 1;
@@ -284,29 +326,24 @@ export function useDownloader() {
     }
   };
 
-  const startBatchDownload = async (urlsText: string) => {
-    const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+  const startBatchDownload = async (urlsText: string, options: DownloadOptions = {}) => {
+    const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u);
     if (urls.length === 0) return;
-
-    stopRequestedRef.current = false;
+    
+    addLog(`🚀 [BATCH] Starting ${urls.length} downloads...`);
     setIsLoading(true);
-    setIsStopDisabled(false); // Enable stop button
-    setLogs([]);
-    addLog(`📦 Starting Batch Download for ${urls.length} items...`);
+    setIsStopDisabled(false);
+    stopRequestedRef.current = false;
 
     for (let i = 0; i < urls.length; i++) {
-      if (stopRequestedRef.current) {
-        addLog("🛑 Batch download stopped by user.");
-        break;
-      }
-      addLog(`\n🔄 Processing (${i + 1}/${urls.length})`);
-      const code = await runSingleDownload(urls[i], 'ytdlp', {}, `Batch Item ${i + 1}`);
+        if (stopRequestedRef.current) break;
+        addLog(`📦 [${i+1}/${urls.length}] Processing ${urls[i]}`);
+        const code = await runSingleDownload(urls[i], 'ytdlp', options, `Batch #${i+1}`);
       if (code !== 0 && !stopRequestedRef.current) addLog(`⚠️ Item ${i + 1} failed. Continuing...`);
     }
 
     setIsLoading(false);
     setIsStopDisabled(true); // Disable stop button after completion
-    activeProcessRef.current = null; // Clear active process
     setProgress(100);
     toast.success("Batch Download Finished!");
     addLog("🎉 All batch items processed!");
@@ -487,6 +524,8 @@ export function useDownloader() {
     analyzeLink,
     stopDownload,
     isStopDisabled,
-    endRef
+    endRef,
+    baseDownloadPath,
+    setBaseDownloadPath: updateBaseDownloadPath
   };
 }

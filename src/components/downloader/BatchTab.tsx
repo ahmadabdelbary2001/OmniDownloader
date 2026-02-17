@@ -1,4 +1,4 @@
-import { Layers } from 'lucide-react';
+import { Layers, Folder } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 
@@ -9,9 +9,20 @@ interface BatchTabProps {
   onStop: () => void;
   isStopDisabled: boolean;
   isLoading: boolean;
+  customPath: string;
+  onSelectPath: () => void;
 }
 
-export function BatchTab({ batchUrls, setBatchUrls, onDownload, onStop, isStopDisabled, isLoading }: BatchTabProps) {
+export function BatchTab({
+  batchUrls, 
+  setBatchUrls, 
+  onDownload, 
+  onStop, 
+  isStopDisabled, 
+  isLoading,
+  customPath,
+  onSelectPath
+}: BatchTabProps) {
   return (
     <div className="flex flex-col h-full p-6 m-0 space-y-6">
        <div className="space-y-2">
@@ -25,6 +36,14 @@ export function BatchTab({ batchUrls, setBatchUrls, onDownload, onStop, isStopDi
           <p className="text-[10px] text-muted-foreground/60 italic">Links will be downloaded sequentially. Empty and invalid lines are ignored.</p>
        </div>
        <div className="flex gap-2">
+         <Button 
+            onClick={onSelectPath}
+            variant="outline"
+            title={customPath || "Use default path"}
+            className={`h-12 px-4 border-white/10 ${customPath ? 'text-blue-400 bg-blue-400/5 border-blue-400/30' : 'text-white/40'}`}
+         >
+            <Folder className="w-5 h-5" />
+         </Button>
          <Button onClick={() => onDownload(batchUrls)} disabled={isLoading || !batchUrls} className="h-12 flex-1 gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 font-bold shadow-lg shadow-blue-600/20 uppercase tracking-widest text-xs">
             <Layers className="w-5 h-5" /> Start Batch Processing
          </Button>

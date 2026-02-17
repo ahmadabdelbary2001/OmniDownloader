@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Download, Globe, List, Terminal, Search, Link as LinkIcon, Layers, FileDown } from 'lucide-react';
+import { Download, Globe, List, Terminal, Search, Link as LinkIcon, Layers, FileDown, Folder } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
+import { open } from '@tauri-apps/plugin-dialog';
 
 import { useDownloader } from '../hooks/useDownloader';
 import { SearchTab } from './downloader/SearchTab';
@@ -10,6 +11,7 @@ import { BatchTab } from './downloader/BatchTab';
 import { WgetTab } from './downloader/WgetTab';
 import { LogViewer } from './downloader/LogViewer';
 import { VideoQuality, MediaMetadata } from '../types/downloader';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export function Downloader() {
   const {
@@ -25,8 +27,26 @@ export function Downloader() {
     analyzeLink,
     stopDownload,
     isStopDisabled,
-    endRef
+    endRef,
+    baseDownloadPath,
+    setBaseDownloadPath
   } = useDownloader();
+
+  const handleSelectDefaultPath = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: baseDownloadPath
+      });
+      if (selected && typeof selected === 'string') {
+        setBaseDownloadPath(selected);
+        toast.success("Default download path updated!");
+      }
+    } catch (e) {
+      toast.error("Failed to select folder");
+    }
+  };
 
   const [url, setUrl] = useState('');
   const [batchUrls, setBatchUrls] = useState('');
@@ -37,6 +57,24 @@ export function Downloader() {
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
   const [wgetFilename, setWgetFilename] = useState('');
   const [wgetReferer, setWgetReferer] = useState('');
+  const [directPath, setDirectPath] = useState('');
+  const [batchPath, setBatchPath] = useState('');
+  const [wgetPath, setWgetPath] = useState('');
+
+  const handleSelectPath = async (setter: (p: string) => void) => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false
+      });
+      if (selected && typeof selected === 'string') {
+        setter(selected);
+        toast.success("Download location selected for this task.");
+      }
+    } catch (e) {
+      toast.error("Failed to select folder");
+    }
+  };
 
   const onAnalyze = async (inputUrl: string) => {
     const result = await analyzeLink(inputUrl);
@@ -65,9 +103,31 @@ export function Downloader() {
            </h1>
            <p className="text-muted-foreground text-sm mt-1">Universal Media & File Downloader</p>
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-           <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`} />
-           <span className="text-[10px] uppercase font-bold tracking-widest text-white/70">{isLoading ? 'Processing' : 'System Ready'}</span>
+        <div className="flex items-center gap-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div 
+                  onClick={handleSelectDefaultPath}
+                  className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-blue-500/50 transition-all cursor-pointer group"
+                >
+                  <Folder className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                  <div className="flex flex-col">
+                    <span className="text-[9px] uppercase font-black tracking-widest text-white/30 truncate max-w-[150px]">Default Save Path</span>
+                    <span className="text-[11px] font-bold text-white/70 truncate max-w-[200px]">{baseDownloadPath.split(/[\\/]/).pop() || 'Downloads'}</span>
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-white/10 text-white text-[10px]">
+                {baseDownloadPath} (Click to change)
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+             <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`} />
+             <span className="text-[10px] uppercase font-bold tracking-widest text-white/70">{isLoading ? 'Processing' : 'System Ready'}</span>
+          </div>
         </div>
       </div>
 
@@ -106,6 +166,8 @@ export function Downloader() {
                   onStop={stopDownload}
                   isStopDisabled={isStopDisabled}
                   isLoading={isLoading} 
+                  customPath={directPath}
+                  onSelectPath={() => handleSelectPath(setDirectPath)}
                 />
               </TabsContent>
 
@@ -113,10 +175,12 @@ export function Downloader() {
                 <BatchTab 
                   batchUrls={batchUrls} 
                   setBatchUrls={setBatchUrls} 
-                  onDownload={startBatchDownload} 
+                  onDownload={(urls) => startBatchDownload(urls, { downloadPath: batchPath || undefined })} 
                   onStop={stopDownload}
                   isStopDisabled={isStopDisabled}
                   isLoading={isLoading} 
+                  customPath={batchPath}
+                  onSelectPath={() => handleSelectPath(setBatchPath)}
                 />
               </TabsContent>
 
@@ -128,10 +192,12 @@ export function Downloader() {
                   setFilename={setWgetFilename} 
                   referer={wgetReferer} 
                   setReferer={setWgetReferer} 
-                  onDownload={(u, opts) => startDownload(u, 'wget', opts)} 
+                  onDownload={(u, opts) => startDownload(u, 'wget', { ...opts, downloadPath: wgetPath || undefined })} 
                   onStop={stopDownload}
                   isStopDisabled={isStopDisabled}
                   isLoading={isLoading} 
+                  customPath={wgetPath}
+                  onSelectPath={() => handleSelectPath(setWgetPath)}
                 />
               </TabsContent>
             </div>

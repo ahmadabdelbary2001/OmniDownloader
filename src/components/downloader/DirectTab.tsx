@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Check, ListChecks, Hash, ArrowRight, Play, Youtube } from 'lucide-react';
+import { Download, Check, ListChecks, Hash, ArrowRight, Play, Youtube, Folder } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { VideoQuality, MediaMetadata } from '../../types/downloader';
@@ -17,10 +17,12 @@ interface DirectTabProps {
   isPlaylist: boolean;
   metadata: MediaMetadata | null;
   onAnalyze: (url: string) => void;
-  onDownload: (url: string, options: { playlistItems: string, quality: VideoQuality }) => void;
+  onDownload: (url: string, options: { playlistItems: string, quality: VideoQuality, downloadPath?: string }) => void;
   onStop: () => void;
   isStopDisabled: boolean;
   isLoading: boolean;
+  customPath: string;
+  onSelectPath: () => void;
 }
 
 export function DirectTab({ 
@@ -28,7 +30,8 @@ export function DirectTab({
   playlistItems, setPlaylistItems, 
   quality, setQuality,
   isPlaylist, metadata,
-  onAnalyze, onDownload, onStop, isStopDisabled, isLoading 
+  onAnalyze, onDownload, onStop, isStopDisabled, isLoading,
+  customPath, onSelectPath
 }: DirectTabProps) {
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [rangeFrom, setRangeFrom] = useState('');
@@ -303,7 +306,15 @@ export function DirectTab({
 
         <div className="flex gap-2 shrink-0">
           <Button 
-            onClick={() => onDownload(url, { playlistItems, quality })} 
+            onClick={onSelectPath}
+            variant="outline"
+            title={customPath || "Use default path"}
+            className={`h-14 px-4 border-white/10 ${customPath ? 'text-blue-400 bg-blue-400/5 border-blue-400/30' : 'text-white/40'}`}
+          >
+            <Folder className="w-5 h-5" />
+          </Button>
+          <Button 
+            onClick={() => onDownload(url, { playlistItems, quality, downloadPath: customPath || undefined })} 
             disabled={isLoading || !url} 
             className="h-14 flex-1 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold shadow-2xl shadow-blue-600/30 text-base uppercase tracking-widest"
           >

@@ -1,4 +1,4 @@
-import { FileDown, AlertCircle } from 'lucide-react';
+import { FileDown, AlertCircle, Folder } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 
@@ -9,13 +9,22 @@ interface WgetTabProps {
   setFilename: (name: string) => void;
   referer: string;
   setReferer: (ref: string) => void;
-  onDownload: (url: string, options: { wgetFilename: string; wgetReferer: string }) => void;
+  onDownload: (url: string, options: { wgetFilename: string; wgetReferer: string; downloadPath?: string }) => void;
   onStop: () => void;
   isStopDisabled: boolean;
   isLoading: boolean;
+  customPath: string;
+  onSelectPath: () => void;
 }
 
-export function WgetTab({ url, setUrl, filename, setFilename, referer, setReferer, onDownload, onStop, isStopDisabled, isLoading }: WgetTabProps) {
+export function WgetTab({ 
+  url, setUrl, 
+  filename, setFilename, 
+  referer, setReferer, 
+  onDownload, onStop, 
+  isStopDisabled, isLoading,
+  customPath, onSelectPath
+}: WgetTabProps) {
   return (
     <div className="flex flex-col h-full p-6 m-0 space-y-6">
       <div className="space-y-2">
@@ -48,7 +57,15 @@ export function WgetTab({ url, setUrl, filename, setFilename, referer, setRefere
         </div>
       </div>
       <div className="flex gap-2">
-        <Button onClick={() => onDownload(url, { wgetFilename: filename, wgetReferer: referer })} disabled={isLoading || !url} className="h-12 flex-1 gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-bold shadow-lg shadow-indigo-600/20">
+        <Button 
+          onClick={onSelectPath}
+          variant="outline"
+          title={customPath || "Use default path"}
+          className={`h-12 px-4 border-white/10 ${customPath ? 'text-blue-400 bg-blue-400/5 border-blue-400/30' : 'text-white/40'}`}
+        >
+          <Folder className="w-5 h-5" />
+        </Button>
+        <Button onClick={() => onDownload(url, { wgetFilename: filename, wgetReferer: referer, downloadPath: customPath || undefined })} disabled={isLoading || !url} className="h-12 flex-1 gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-bold shadow-lg shadow-indigo-600/20">
           <FileDown className="w-5 h-5" /> START WGET
         </Button>
         {!isStopDisabled && (

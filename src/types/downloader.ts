@@ -15,6 +15,7 @@ export interface DownloadOptions {
   wgetFilename?: string;
   wgetReferer?: string;
   quality?: VideoQuality;
+  downloadPath?: string;
 }
 
 export interface PlaylistEntry {
