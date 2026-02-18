@@ -100,9 +100,15 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
                   <Pause className="w-3.5 h-3.5" />
                 </Button>
               )}
-              {(task.status === 'paused' || task.status === 'failed') && (
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-500 hover:text-blue-400" onClick={() => onResume(task.id)}>
+              {(task.status === 'paused' || task.status === 'failed' || task.status === 'waiting') && (
+                <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-7 w-7 text-blue-500 hover:text-blue-400 group/btn relative" 
+                    onClick={() => onResume(task.id)}
+                >
                   <Play className="w-3.5 h-3.5" />
+                  {task.status === 'waiting' && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse shadow-[0_0_5px_rgba(96,165,250,0.5)]" />}
                 </Button>
               )}
               {task.status === 'completed' && (

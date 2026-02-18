@@ -36,16 +36,20 @@ export function useDownloader() {
   }, [tasks]);
 
   const [isQueueActive, setIsQueueActive] = useState(() => {
-    return localStorage.getItem('omni_queue_active') === 'true';
+    const saved = localStorage.getItem('omni_queue_active');
+    return saved === null ? true : saved === 'true';
   });
 
   useEffect(() => {
     localStorage.setItem('omni_queue_active', String(isQueueActive));
   }, [isQueueActive]);
 
-  const [isStopDisabled, setIsStopDisabled] = useState(true);
-  const activeProcessRef = useRef<any>(null);
+  const activeProcessesRef = useRef<Map<string, any>>(new Map());
   const stopRequestedRef = useRef<boolean>(false);
+
+  const [isStopDisabledState, setIsStopDisabledState] = useState(true);
+  const isAnyDownloading = tasks.some(t => t.status === 'downloading');
+  const isStopDisabled = !isAnyDownloading && isStopDisabledState; // We'll keep a state for other busy things
   
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -157,28 +161,24 @@ export function useDownloader() {
     } finally {
       setIsSearching(false);
       setIsLoading(false); // Ensure isLoading is reset
-      setIsStopDisabled(true); // Ensure stop button is disabled
-      activeProcessRef.current = null; // Clear active process
+      setIsStopDisabledState(true); // Ensure stop button is disabled
     }
   };
 
   const isWindows = navigator.userAgent.includes('Windows');
 
   const stopDownload = async () => {
-    if (stopRequestedRef.current) return;
+    addLog("🛑 STOP ALL requested - Terminating all active processes...");
     
-    stopRequestedRef.current = true;
-    addLog("🛑 STOP requested - Terminating current download process...");
-    
-    // 1. Kill the specific active process first (Tauri v2 Child)
-    if (activeProcessRef.current) {
-      try {
-        await activeProcessRef.current.kill();
-        addLog("⚡ Terminated active process.");
-      } catch (e) {
-        addLog(`⚠️ Failed to kill active process via API: ${e}`);
-      }
+    // Kill all processes in the map
+    const processIds = Array.from(activeProcessesRef.current.keys());
+    for (const id of processIds) {
+      await stopTaskProcess(id); // Use helper
     }
+
+    // Fallback cleanup
+    
+    // Simplified specific killing as we now have a map
 
     // 2. Fallback: Systematic cleanup (Windows/Linux)
     // We target common sidecar names and their triples to be sure
@@ -205,10 +205,21 @@ export function useDownloader() {
     }
     
     // Clean up state
-    activeProcessRef.current = null;
-    setIsLoading(false);
-    setIsStopDisabled(true);
-    addLog("✅ Cleanup complete. The process should have stopped. Click 'Download' to resume.");
+    setIsStopDisabledState(true);
+    addLog("✅ Cleanup complete. All processes should have stopped.");
+  };
+
+  const stopTaskProcess = async (taskId: string) => {
+    const child = activeProcessesRef.current.get(taskId);
+    if (child) {
+      try {
+        await child.kill();
+        activeProcessesRef.current.delete(taskId);
+        addLog(`⚡ Terminated task process: ${taskId}`);
+      } catch (e) {
+        addLog(`⚠️ Failed to kill task ${taskId}: ${e}`);
+      }
+    }
   };
 
   const runSingleDownload = async (
@@ -315,7 +326,7 @@ export function useDownloader() {
       const cmd = Command.sidecar(service, args);
       
       const child = await cmd.spawn();
-      activeProcessRef.current = child;
+      if (taskId) activeProcessesRef.current.set(taskId, child);
 
       cmd.stdout.on('data', (line) => {
         if (stopRequestedRef.current) return;
@@ -392,14 +403,11 @@ export function useDownloader() {
     }
 
     stopRequestedRef.current = false;
-    setIsLoading(true);
-    setIsStopDisabled(false);
+    setIsStopDisabledState(false);
     
     const code = await runSingleDownload(targetUrl, service, options, taskId);
     
-    setIsLoading(false);
-    setIsStopDisabled(true);
-    activeProcessRef.current = null;
+    setIsStopDisabledState(true);
 
     if (stopRequestedRef.current) {
       updateTask(taskId, { status: 'paused' });
@@ -441,7 +449,11 @@ export function useDownloader() {
 
   // Background Queue Manager
   useEffect(() => {
-    if (!isQueueActive || isLoading) return;
+    if (!isQueueActive) return;
+
+    // Wait if any download is already active
+    const isAnyActive = tasks.some(t => t.status === 'downloading');
+    if (isAnyActive) return;
 
     // Find the next waiting task by queueOrder
     const sortedWaiting = [...tasks]
@@ -462,7 +474,7 @@ export function useDownloader() {
     
     addLog(`🚀 [BATCH] Starting ${urls.length} downloads...`);
     setIsLoading(true);
-    setIsStopDisabled(false);
+    setIsStopDisabledState(false);
     stopRequestedRef.current = false;
 
     for (let i = 0; i < urls.length; i++) {
@@ -473,7 +485,7 @@ export function useDownloader() {
     }
 
     setIsLoading(false);
-    setIsStopDisabled(true); // Disable stop button after completion
+    setIsStopDisabledState(true); // Disable stop button after completion
     setProgress(100);
     toast.success("Batch Download Finished!");
     addLog("🎉 All batch items processed!");
@@ -506,7 +518,7 @@ export function useDownloader() {
       ]);
       
       const child = await cmd.spawn();
-      activeProcessRef.current = child;
+      activeProcessesRef.current.set("metadata", child);
 
       let stdout = '';
       let stderr = '';
@@ -559,7 +571,7 @@ export function useDownloader() {
       return null;
     } finally {
       setIsLoading(false);
-      activeProcessRef.current = null; // Clear active process
+      activeProcessesRef.current.delete("metadata");
     }
   };
 
@@ -581,7 +593,7 @@ export function useDownloader() {
         addLog("✨ Detected special site - Extracting source...");
         const btbCmd = Command.sidecar("wget", ["-q", "-O", "-", url]);
         const btbChild = await btbCmd.spawn();
-        activeProcessRef.current = btbChild;
+        activeProcessesRef.current.set("analysis", btbChild);
 
         let btbStdout = '';
         btbCmd.stdout.on('data', (data: string) => {
@@ -590,7 +602,10 @@ export function useDownloader() {
         });
 
         const btbCompletion = new Promise<{ code: number | null }>((resolve) => {
-          btbCmd.on('close', (data) => resolve(data));
+          btbCmd.on('close', (data) => {
+              activeProcessesRef.current.delete("analysis");
+              resolve(data);
+          });
         });
         await btbCompletion;
 
@@ -602,7 +617,7 @@ export function useDownloader() {
         const embedUrl = iframeMatch[1];
         const embedCmd = Command.sidecar("wget", ["-q", "-O", "-", embedUrl]);
         const embedChild = await embedCmd.spawn();
-        activeProcessRef.current = embedChild;
+        activeProcessesRef.current.set("analysis", embedChild);
 
         let embedStdout = '';
         embedCmd.stdout.on('data', (data: string) => {
@@ -611,7 +626,10 @@ export function useDownloader() {
         });
 
         const embedCompletion = new Promise<{ code: number | null }>((resolve) => {
-          embedCmd.on('close', (data) => resolve(data));
+          embedCmd.on('close', (data) => {
+              activeProcessesRef.current.delete("analysis");
+              resolve(data);
+          });
         });
         await embedCompletion;
 
@@ -636,7 +654,7 @@ export function useDownloader() {
       return null;
     } finally {
       setIsLoading(false);
-      activeProcessRef.current = null; // Clear active process
+      activeProcessesRef.current.delete("analysis");
     }
   };
 
