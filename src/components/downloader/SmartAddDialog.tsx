@@ -14,11 +14,12 @@ interface SmartAddDialogProps {
   onClose: () => void;
   onAnalyze: (url: string) => Promise<any>; 
   onAdd: (url: string, service: any, options: DownloadOptions, title: string, thumbnail?: string) => void;
+  onAddBulk: (items: { url: string, service: any, options: DownloadOptions, title: string, thumbnail?: string }[]) => void;
   defaultPath: string;
   onSelectPath: () => Promise<string | undefined>;
 }
 
-export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, defaultPath, onSelectPath }: SmartAddDialogProps) {
+export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, defaultPath, onSelectPath }: SmartAddDialogProps) {
   const [url, setUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
@@ -107,19 +108,45 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, defaultPath,
 
   const handleAdd = () => {
     const typeInfo = analyzeLinkType(url);
-    const options: DownloadOptions = {
-        quality,
-        downloadPath: customPath || defaultPath,
-        wgetReferer: wgetReferer || undefined,
-        wgetFilename: wgetFilename || undefined,
-        playlistItems: isPlaylistView ? (playlistItems || undefined) : undefined
-    };
+    
+    if (metadata?.isPlaylist && isPlaylistView && selectedIndices.size > 0) {
+        // Multi-select Individual mode
+        const items = metadata.entries
+            ?.filter(e => selectedIndices.has(e.index))
+            .map(entry => ({
+                url,
+                service: typeInfo.service,
+                options: {
+                    quality,
+                    downloadPath: customPath || defaultPath,
+                    playlistItems: `${entry.index}`
+                },
+                title: entry.title,
+                thumbnail: entry.thumbnail
+            })) || [];
+        
+        if (items.length > 0) {
+            onAddBulk(items);
+        }
+    } else {
+        // Single Task mode (could be one video OR a whole playlist as one task)
+        const options: DownloadOptions = {
+            quality,
+            downloadPath: customPath || defaultPath,
+            wgetReferer: wgetReferer || undefined,
+            wgetFilename: wgetFilename || undefined,
+            playlistItems: isPlaylistView ? (playlistItems || undefined) : undefined
+        };
+        const title = metadata?.title || wgetFilename || url.split('/').pop() || "Download Task";
+        onAdd(url, typeInfo.service, options, title, metadata?.thumbnail);
+    }
 
-    const title = metadata?.title || wgetFilename || url.split('/').pop() || "Download Task";
-    onAdd(url, typeInfo.service, options, title, metadata?.thumbnail);
     onClose();
     setUrl("");
     setMetadata(null);
+    setSelectedIndices(new Set());
+    setPlaylistItems("");
+    setIsPlaylistView(false);
   };
 
   const handlePickFolder = async () => {

@@ -37,7 +37,8 @@ export function Downloader() {
     clearTasks,
     isQueueActive,
     setIsQueueActive,
-    reorderTask
+    reorderTask,
+    addTasksBulk
   } = useDownloader();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -302,6 +303,17 @@ export function Downloader() {
                     startDownload(u, s, o, id);
                 } else {
                     toast.info("Added to queue");
+                }
+            });
+        }}
+        onAddBulk={(items) => {
+            addTasksBulk(items).then(ids => {
+                if (!isQueueActive) {
+                    items.forEach((item, i) => {
+                        startDownload(item.url, item.service, item.options, ids[i]);
+                    });
+                } else {
+                    toast.success(`Success: Added ${items.length} items to queue`);
                 }
             });
         }}
