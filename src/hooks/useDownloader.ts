@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
 import { path } from '@tauri-apps/api';
-import { mkdir, exists } from '@tauri-apps/plugin-fs';
+import { mkdir, exists, remove, readDir } from '@tauri-apps/plugin-fs';
 import { toast } from "sonner";
 import { SearchResult, DownloadService, DownloadOptions, MediaMetadata, DownloadTask } from '../types/downloader';
 
@@ -377,9 +377,9 @@ export function useDownloader() {
     let taskId = existingTaskId;
     
     if (!taskId) {
-      // If we don't have a task ID, we probably need metadata first to get title/thumb
-      // but if we are just starting directly, we can use URL as title for now
       taskId = await addTask(targetUrl, service, options, targetUrl);
+    } else {
+      updateTask(taskId, { status: 'waiting' });
     }
 
     stopRequestedRef.current = false;
@@ -594,6 +594,105 @@ export function useDownloader() {
     }
   };
 
+  const performFileCleanup = async (task: DownloadTask) => {
+    try {
+      const downloadDir = task.options.downloadPath || baseDownloadPath;
+      const dirExists = await exists(downloadDir);
+      
+      if (!dirExists) return;
+
+      const entries = await readDir(downloadDir);
+      
+      // Heuristic: identify search terms from title and url
+      const terms: string[] = [];
+      
+      // 1. From title (clean it)
+      let cleanTitle = task.title.replace(/\.(mp4|mkv|webm|avi|mp3|zip|rar|exe|pdf|iso)$|(\.part)$|(\.ytdl)$|(\.temp)$|(\.tmp)$/gi, '');
+      cleanTitle = cleanTitle.replace(/[^a-z0-9]/gi, ' ').trim();
+      if (cleanTitle.length > 3) terms.push(cleanTitle.split(' ')[0]); // Primary word
+      
+      // 2. From URL if possible
+      try {
+        const urlObj = new URL(task.url);
+        const urlFile = urlObj.pathname.split('/').pop()?.split('?')[0];
+        if (urlFile) {
+          const cleanUrlFile = urlFile.replace(/\.(mp4|mkv|webm|avi|mp3|zip|rar|exe|pdf|iso)$/i, '').replace(/[^a-z0-9]/gi, ' ').trim();
+          if (cleanUrlFile.length > 3) terms.push(cleanUrlFile.split(' ')[0]);
+        }
+      } catch (e) {}
+
+      // Common temp extensions
+      const tempExts = ['.part', '.ytdl', '.temp', '.tmp', '.unknown_video.part'];
+      
+      addLog(`🧹 Scanning for fragments of "${task.title}"...`);
+      let count = 0;
+
+      for (const entry of entries) {
+        const entryLower = entry.name.toLowerCase();
+        const isTemp = tempExts.some(ext => entryLower.endsWith(ext)) || entryLower.includes('.ytdl-');
+        
+        if (isTemp) {
+          // Check if filename contains any of our key terms
+          const matches = terms.some(term => term.length > 2 && entryLower.includes(term.toLowerCase()));
+          
+          if (matches || entryLower.includes(task.id)) {
+            const fullPath = await path.join(downloadDir, entry.name);
+            await remove(fullPath);
+            addLog(`🗑️ Deleted: ${entry.name}`);
+            count++;
+          }
+        }
+      }
+      
+      if (count > 0) {
+        addLog(`✅ Cleaned up ${count} file(s).`);
+      } else {
+        addLog(`ℹ️ No matching fragments found for deletion.`);
+      }
+    } catch (e) {
+      console.error("Cleanup error:", e);
+      addLog(`⚠️ Cleanup failed: ${e}`);
+    }
+  };
+
+  const removeTask = async (id: string, deleteFiles: boolean = false) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    if (task.status === 'downloading' || task.status === 'analyzing') {
+       await stopDownload();
+       await new Promise(r => setTimeout(r, 800)); // Wait for handle to release
+    }
+
+    if (deleteFiles || task.status !== 'completed') {
+      await performFileCleanup(task);
+    }
+
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const clearTasks = async (onlyCompleted: boolean = false) => {
+    if (!onlyCompleted) {
+      // First stop any active ones
+      const hasActive = tasks.some(t => t.status === 'downloading' || t.status === 'analyzing');
+      if (hasActive) {
+        await stopDownload();
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // Cleanup all unfinished tasks files
+      for (const task of tasks) {
+        if (task.status !== 'completed') {
+           await performFileCleanup(task);
+        }
+      }
+      setTasks([]);
+      toast.success("List cleared and temporary files removed");
+    } else {
+      setTasks(prev => prev.filter(t => t.status !== 'completed'));
+    }
+  };
+
   return {
     logs,
     setLogs,
@@ -614,6 +713,8 @@ export function useDownloader() {
     tasks,
     setTasks,
     addTask,
+    removeTask,
+    clearTasks,
     getMediaMetadata
   };
 }

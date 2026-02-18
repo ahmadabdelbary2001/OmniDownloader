@@ -4,7 +4,7 @@ import {
   Clock, CheckCircle2, AlertCircle, Info, LayoutGrid
 } from 'lucide-react';
 import { toast } from "sonner";
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, ask } from '@tauri-apps/plugin-dialog';
 
 import { useDownloader } from '../hooks/useDownloader';
 import { DownloadTable } from './downloader/DownloadTable';
@@ -32,7 +32,9 @@ export function Downloader() {
     setBaseDownloadPath,
     tasks,
     setTasks,
-    addTask
+    addTask,
+    removeTask,
+    clearTasks
   } = useDownloader();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -41,7 +43,10 @@ export function Downloader() {
 
   const filteredTasks = tasks.filter(task => {
     if (filter === 'all') return true;
-    return task.status === filter || (filter === 'downloading' && task.status === 'waiting');
+    if (filter === 'downloading') return ['downloading', 'waiting', 'analyzing'].includes(task.status);
+    if (filter === 'completed') return task.status === 'completed';
+    if (filter === 'failed') return ['paused', 'failed'].includes(task.status);
+    return true;
   });
 
   const handleSelectDefaultPath = async () => {
@@ -56,13 +61,39 @@ export function Downloader() {
     }
   };
 
-  const handleRemoveTask = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
+  const handleRemoveTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    if (task.status !== 'completed') {
+      const confirmed = await ask(
+        `The download "${task.title}" is not finished. Do you want to cancel it and remove all temporary files?`,
+        { title: 'OmniDownloader', kind: 'warning' }
+      );
+      if (!confirmed) return;
+      await removeTask(id, true);
+    } else {
+      await removeTask(id);
+    }
   };
 
-  const handlePauseTask = () => {
-    // Current simple implementation just stops the process
+  const handleClearList = async () => {
+    const hasUnfinished = tasks.some(t => t.status !== 'completed');
+    if (hasUnfinished) {
+      const confirmed = await ask(
+        'Some downloads in the list are not finished. Do you want to clear the list and remove all temporary files?',
+        { title: 'OmniDownloader', kind: 'warning' }
+      );
+      if (!confirmed) return;
+    }
+    await clearTasks();
+  };
+
+  const handlePauseTask = (id: string) => {
+    // Current simple implementation: stop the global process
+    // and specifically mark this task as paused in the list
     stopDownload();
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'paused', speed: undefined, eta: undefined } : t));
   };
 
   const handleResumeTask = (id: string) => {
@@ -141,7 +172,7 @@ export function Downloader() {
             </Button>
 
             <Button 
-                onClick={() => setTasks([])}
+                onClick={handleClearList}
                 className="flex-col h-16 border-none bg-transparent hover:bg-white/5 text-white/60 hover:text-red-500 gap-1 px-4"
             >
                 <Trash2 className="w-5 h-5" />
@@ -193,7 +224,15 @@ export function Downloader() {
                     <item.icon className="w-4 h-4" />
                     <span className="text-xs font-bold">{item.label}</span>
                   </div>
-                  <Badge variant="ghost" className="text-[10px] p-0 px-1 opacity-40">{tasks.filter(t => item.id === 'all' || t.status === item.id || (item.id === 'downloading' && t.status === 'waiting')).length}</Badge>
+                  <Badge variant="ghost" className="text-[10px] p-0 px-1 opacity-40">
+                    {tasks.filter(t => {
+                        if (item.id === 'all') return true;
+                        if (item.id === 'downloading') return ['downloading', 'waiting', 'analyzing'].includes(t.status);
+                        if (item.id === 'completed') return t.status === 'completed';
+                        if (item.id === 'failed') return ['paused', 'failed'].includes(t.status);
+                        return false;
+                    }).length}
+                  </Badge>
                 </button>
               ))}
             </div>
