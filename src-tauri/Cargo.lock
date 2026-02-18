@@ -2266,7 +2266,7 @@ dependencies = [
 
 [[package]]
 name = "omni_downloader"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "chrono",
  "rand 0.8.5",
