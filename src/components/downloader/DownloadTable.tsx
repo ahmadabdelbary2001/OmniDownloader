@@ -1,8 +1,9 @@
 import { DownloadTask } from "../../types/downloader";
 import { Progress } from "../ui/progress";
 import { Badge } from "../ui/badge";
-import { Play, Pause, X, FolderOpen, Loader2 } from "lucide-react";
+import { Play, Pause, X, FolderOpen, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "../ui/button";
+import { cn } from "../../lib/utils";
 
 interface DownloadTableProps {
   tasks: DownloadTask[];
@@ -10,9 +11,11 @@ interface DownloadTableProps {
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onOpenFolder: (id: string) => void;
+  onReorder: (id: string, direction: 'up' | 'down') => void;
+  isQueueActive: boolean;
 }
 
-export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder }: DownloadTableProps) {
+export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder, onReorder, isQueueActive }: DownloadTableProps) {
   if (tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-white/20 p-12">
@@ -35,9 +38,24 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
         {tasks.map((task) => (
           <div 
             key={task.id} 
-            className="grid grid-cols-12 gap-2 p-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center group"
+            className={cn(
+                "grid grid-cols-12 gap-2 p-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center group relative",
+                task.status === 'downloading' && "bg-blue-500/[0.01]"
+            )}
           >
             <div className="col-span-4 flex items-center gap-3 overflow-hidden">
+               {isQueueActive && (
+                  <div className="flex flex-col items-center gap-0.5 min-w-[20px] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); onReorder(task.id, 'up'); }} className="text-white/20 hover:text-blue-500">
+                          <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <span className="text-[10px] font-black text-blue-500/40">#{task.queueOrder || '-'}</span>
+                      <button onClick={(e) => { e.stopPropagation(); onReorder(task.id, 'down'); }} className="text-white/20 hover:text-blue-500">
+                          <ArrowDown className="w-3 h-3" />
+                      </button>
+                  </div>
+               )}
+
               {task.thumbnail ? (
                 <img src={task.thumbnail} className="w-10 h-6 object-cover rounded bg-black/40" alt="" />
               ) : (

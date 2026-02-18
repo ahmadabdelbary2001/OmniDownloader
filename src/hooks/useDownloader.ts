@@ -22,7 +22,7 @@ export function useDownloader() {
             return { ...t, status: 'paused' };
           }
           return t;
-        });
+        }).sort((a: any, b: any) => (a.queueOrder || 0) - (b.queueOrder || 0));
       } catch (e) {
         console.error("Failed to parse saved tasks", e);
         return [];
@@ -34,6 +34,14 @@ export function useDownloader() {
   useEffect(() => {
     localStorage.setItem('omni_tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  const [isQueueActive, setIsQueueActive] = useState(() => {
+    return localStorage.getItem('omni_queue_active') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('omni_queue_active', String(isQueueActive));
+  }, [isQueueActive]);
 
   const [isStopDisabled, setIsStopDisabled] = useState(true);
   const activeProcessRef = useRef<any>(null);
@@ -367,9 +375,10 @@ export function useDownloader() {
       service,
       options,
       createdAt: Date.now(),
-      thumbnail
+      thumbnail,
+      queueOrder: tasks.length > 0 ? Math.max(...tasks.map(t => t.queueOrder || 0)) + 1 : 1
     };
-    setTasks(prev => [newTask, ...prev]);
+    setTasks(prev => [...prev, newTask].sort((a, b) => (a.queueOrder || 0) - (b.queueOrder || 0)));
     return id;
   };
 
@@ -409,6 +418,43 @@ export function useDownloader() {
       addLog(`❌ Process failed with code: ${code}`);
     }
   };
+
+  const reorderTask = (id: string, direction: 'up' | 'down') => {
+    setTasks(prev => {
+        const index = prev.findIndex(t => t.id === id);
+        if (index === -1) return prev;
+        
+        const newTasks = [...prev];
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        
+        if (targetIndex >= 0 && targetIndex < newTasks.length) {
+            // Swap both the array position AND the queueOrder
+            const tempOrder = newTasks[index].queueOrder;
+            newTasks[index].queueOrder = newTasks[targetIndex].queueOrder;
+            newTasks[targetIndex].queueOrder = tempOrder;
+            
+            [newTasks[index], newTasks[targetIndex]] = [newTasks[targetIndex], newTasks[index]];
+        }
+        return newTasks;
+    });
+  };
+
+  // Background Queue Manager
+  useEffect(() => {
+    if (!isQueueActive || isLoading) return;
+
+    // Find the next waiting task by queueOrder
+    const sortedWaiting = [...tasks]
+        .filter(t => t.status === 'waiting')
+        .sort((a, b) => (a.queueOrder || 0) - (b.queueOrder || 0));
+
+    const nextTask = sortedWaiting[0];
+
+    if (nextTask) {
+        addLog(`🕒 Queue Manager: Starting next task: ${nextTask.title}`);
+        startDownload(nextTask.url, nextTask.service, nextTask.options, nextTask.id);
+    }
+  }, [isQueueActive, isLoading, tasks]);
 
   const startBatchDownload = async (urlsText: string, options: DownloadOptions = {}) => {
     const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u);
@@ -715,6 +761,9 @@ export function useDownloader() {
     addTask,
     removeTask,
     clearTasks,
-    getMediaMetadata
+    getMediaMetadata,
+    isQueueActive,
+    setIsQueueActive,
+    reorderTask
   };
 }

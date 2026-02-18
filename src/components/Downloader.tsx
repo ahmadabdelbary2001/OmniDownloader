@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   Download, Terminal, Search, Folder, Plus, Pause, Trash2, 
-  Clock, CheckCircle2, AlertCircle, Info, LayoutGrid
+  Clock, CheckCircle2, AlertCircle, Info, LayoutGrid, ListChecks
 } from 'lucide-react';
 import { toast } from "sonner";
 import { open, ask } from '@tauri-apps/plugin-dialog';
@@ -34,7 +34,10 @@ export function Downloader() {
     setTasks,
     addTask,
     removeTask,
-    clearTasks
+    clearTasks,
+    isQueueActive,
+    setIsQueueActive,
+    reorderTask
   } = useDownloader();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -178,6 +181,19 @@ export function Downloader() {
                 <Trash2 className="w-5 h-5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">Clear List</span>
             </Button>
+
+            <div className="h-10 w-px bg-white/5 mx-2" />
+
+            <Button 
+                onClick={() => setIsQueueActive(!isQueueActive)}
+                className={`flex-col h-16 border-none bg-transparent hover:bg-white/5 gap-1 px-4 transition-all ${isQueueActive ? 'text-blue-400' : 'text-white/20'}`}
+            >
+                <div className="relative">
+                    <ListChecks className="w-5 h-5" />
+                    {isQueueActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest">Smart Queue</span>
+            </Button>
           </div>
         </div>
 
@@ -255,6 +271,8 @@ export function Downloader() {
              onPause={handlePauseTask}
              onResume={handleResumeTask}
              onOpenFolder={handleOpenFolder}
+             onReorder={reorderTask}
+             isQueueActive={isQueueActive}
            />
 
            {/* Small mini-logs at bottom if open */}
@@ -280,7 +298,11 @@ export function Downloader() {
         onAnalyze={analyzeLink}
         onAdd={(u, s, o, t, th) => {
             addTask(u, s, o, t, th).then(id => {
-                startDownload(u, s, o, id);
+                if (!isQueueActive) {
+                    startDownload(u, s, o, id);
+                } else {
+                    toast.info("Added to queue");
+                }
             });
         }}
         defaultPath={baseDownloadPath}

@@ -34,6 +34,7 @@ export interface DownloadTask {
   options: DownloadOptions;
   createdAt: number;
   thumbnail?: string;
+  queueOrder?: number;
 }
 
 export interface PlaylistEntry {
