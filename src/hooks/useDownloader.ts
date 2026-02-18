@@ -585,6 +585,7 @@ export function useDownloader() {
       const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
       
       const metadata: MediaMetadata = {
+        id: json.id,
         title: json.title || (isPlaylist ? "Playlist" : "Unknown Title"),
         thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
         isPlaylist: isPlaylist,
@@ -680,9 +681,18 @@ export function useDownloader() {
       }
       
       const meta = await getMediaMetadata(url);
+      
+      let embedUrl: string | null = null;
+      if (meta && !meta.isPlaylist) {
+          if (url.includes('youtube.com') || url.includes('youtu.be')) {
+              const videoId = meta.id || meta.requestedVideoId;
+              if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
+          }
+      }
+
       return { 
         directUrl: url, 
-        embedUrl: null, 
+        embedUrl: embedUrl, 
         isPlaylist: meta?.isPlaylist || false,
         metadata: meta 
       };

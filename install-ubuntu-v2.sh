@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# OmniDownloader v2.0 - Ubuntu Installation Script
-# This script installs the OmniDownloader v2.0 desktop application on Ubuntu
+# OmniDownloader v2.1 - Ubuntu Installation Script
+# This script installs the OmniDownloader v2.1 desktop application on Ubuntu
 
-echo "🎮 Installing OmniDownloader v2.0 for Ubuntu..."
-echo "ℹ️  Note: Package shows version 0.1.0 but contains all v2.0 features and improvements"
+echo "🎮 Installing OmniDownloader v2.1 for Ubuntu..."
+echo "ℹ️  Note: Package shows version 0.1.0 but contains all v2.1 features and improvements"
 
 # Check if running on Ubuntu/Debian
 if ! command -v dpkg &> /dev/null; then
@@ -12,7 +12,7 @@ if ! command -v dpkg &> /dev/null; then
     exit 1
 fi
 
-# Path to the .deb package (this is functionally v2.0 with all improvements)
+# Path to the .deb package (this is functionally v2.1 with all improvements)
 DEB_PACKAGE="src-tauri/target/release/bundle/deb/omni-downloader_0.1.0_amd64.deb"
 
 # Check if package exists
@@ -35,7 +35,7 @@ echo "🚀 To run the application:"
 echo "   - Search for 'OmniDownloader' in your applications menu"
 echo "   - Or run: omni-downloader"
 echo ""
-echo "📋 This v2.0 package includes:"
+echo "📋 This v2.1 package includes:"
 echo "   ✅ Fixed duplicate purchase event requests"
 echo "   ✅ Calendar and time pickers for better UX"
 echo "   ✅ Proper time_spent scaling across all events"

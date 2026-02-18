@@ -128,7 +128,7 @@ export function Downloader() {
               </div>
               OMNI<span className="text-blue-500">DOWNLOADER</span>
             </h1>
-            <p className="text-[9px] uppercase font-bold tracking-[3px] text-white/30 text-center">Version 2.0 Pro</p>
+            <p className="text-[9px] uppercase font-bold tracking-[3px] text-white/30 text-center">Version 2.1 Pro</p>
           </div>
 
           <div className="h-10 w-px bg-white/5 mx-2" />

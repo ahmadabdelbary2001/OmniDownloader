@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Search, Download, Globe, Play, Youtube } from 'lucide-react';
+import { Search, Download, Globe, Play, Youtube, Loader2, X } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card, CardContent } from '../ui/card';
 import { SearchResult } from '../../types/downloader';
-import { VideoPlayer } from './VideoPlayer';
 
 interface SearchTabProps {
   onSearch: (query: string) => void;
@@ -16,11 +15,23 @@ interface SearchTabProps {
 
 export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: SearchTabProps) {
   const [query, setQuery] = useState('');
-  const [playingVideo, setPlayingVideo] = useState<{ url: string; title: string } | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<{ url: string; title: string, embedUrl: string | null } | null>(null);
+
+  const getYouTubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const handleWatch = (url: string, title: string) => {
+    const videoId = getYouTubeId(url);
+    const embed = videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : (url.includes('embed') ? url : null);
+    setPlayingVideo({ url, title, embedUrl: embed });
+  };
 
   return (
     <div className="flex flex-col h-full p-4 m-0 overflow-hidden relative">
-      <div className="flex flex-col gap-4 mb-6">
+      <div className="flex flex-col gap-4 mb-4">
         <div className="space-y-2">
           <label className="text-[10px] font-black text-blue-400 uppercase tracking-[2px]">Enter Search Term</label>
           <div className="flex gap-2">
@@ -29,15 +40,40 @@ export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: 
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onSearch(query)}
-              className="bg-slate-900/50 border-white/10 h-10 text-base"
+              className="bg-slate-900/50 border-white/10 h-10 text-base focus-visible:ring-blue-500/50"
             />
-            <Button onClick={() => onSearch(query)} disabled={isSearching} className="bg-blue-600 hover:bg-blue-500 h-10 min-w-32 font-bold shadow-lg shadow-blue-500/20">
-              {isSearching ? <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+            <Button onClick={() => onSearch(query)} disabled={isSearching} className="bg-blue-600 hover:bg-blue-500 h-10 min-w-32 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-500/20">
+              {isSearching ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
               SEARCH
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Integrated Preview Player */}
+      {playingVideo && playingVideo.embedUrl && (
+        <div className="mb-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl group">
+                <iframe 
+                    src={playingVideo.embedUrl}
+                    className="w-full h-full"
+                    allowFullScreen
+                    allow="autoplay; encrypted-media"
+                />
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setPlayingVideo(null)} 
+                    className="absolute top-2 right-2 rounded-full bg-black/40 hover:bg-red-500 text-white border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-300"
+                >
+                    <X className="w-4 h-4" />
+                </Button>
+                <div className="absolute top-2 left-2 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    <p className="text-[9px] font-black uppercase text-white/80 tracking-widest truncate max-w-[200px]">{playingVideo.title}</p>
+                </div>
+            </div>
+        </div>
+      )}
       
       <ScrollArea className="flex-1 pr-3">
         <div className="grid gap-3">
@@ -47,7 +83,7 @@ export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: 
                 <div className="relative shrink-0 w-full sm:w-44 aspect-video overflow-hidden group/thumb">
                   <img src={res.thumbnail} alt={res.title} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                      <Button size="icon" variant="ghost" onClick={() => setPlayingVideo({ url: res.webpage_url, title: res.title })} className="rounded-full bg-blue-600/80 hover:bg-blue-600 text-white scale-90 group-hover/thumb:scale-100 transition-transform">
+                      <Button size="icon" variant="ghost" onClick={() => handleWatch(res.webpage_url, res.title)} className="rounded-full bg-blue-600/80 hover:bg-blue-600 text-white scale-90 group-hover/thumb:scale-100 transition-transform">
                         <Play className="w-4 h-4" />
                       </Button>
                   </div>
@@ -61,7 +97,7 @@ export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: 
                     <Button size="sm" onClick={() => onDownload(res.webpage_url)} className="h-7 gap-1.5 text-[10px] font-bold bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-600/30">
                       <Download className="w-3 h-3" /> DOWNLOAD
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setPlayingVideo({ url: res.webpage_url, title: res.title })} className="h-7 gap-1.5 text-[10px] font-bold text-blue-400 hover:text-white hover:bg-blue-600/20">
+                    <Button size="sm" variant="ghost" onClick={() => handleWatch(res.webpage_url, res.title)} className="h-7 gap-1.5 text-[10px] font-bold text-blue-400 hover:text-white hover:bg-blue-600/20">
                       <Youtube className="w-3 h-3" /> WATCH
                     </Button>
                     <a href={res.webpage_url} target="_blank" rel="noopener noreferrer">
@@ -83,13 +119,6 @@ export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: 
         </div>
       </ScrollArea>
 
-      {playingVideo && (
-        <VideoPlayer 
-          url={playingVideo.url} 
-          title={playingVideo.title} 
-          onClose={() => setPlayingVideo(null)} 
-        />
-      )}
     </div>
   );
 }

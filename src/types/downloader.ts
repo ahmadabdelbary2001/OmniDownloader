@@ -46,6 +46,7 @@ export interface PlaylistEntry {
 }
 
 export interface MediaMetadata {
+  id?: string;
   title: string;
   thumbnail: string;
   isPlaylist: boolean;
