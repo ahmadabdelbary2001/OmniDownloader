@@ -111,13 +111,13 @@ export function DirectTab({
   return (
     <div className="flex flex-col h-full p-6 m-0 space-y-6 overflow-hidden relative">
         <div className="space-y-2 shrink-0">
-          <label className="text-[10px] font-black text-blue-400 uppercase tracking-[2px]">Direct Media/Site URL</label>
+          <label className="text-[10px] font-black text-primary uppercase tracking-[2px]">Direct Media/Site URL</label>
           <div className="flex gap-2">
             <Input 
               placeholder="Paste link here (YouTube, Twitter, BTB, etc.)" 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="bg-slate-900/50 border-white/10 text-base py-6 flex-1"
+              className="bg-card/50 border-border/40 text-base py-6 flex-1"
             />
             <Button variant="secondary" onClick={() => onAnalyze(url)} disabled={isLoading || !url} className="h-12 px-6 font-bold border border-white/10">
               {isLoading ? <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" /> : "ANALYZE"}
@@ -146,20 +146,20 @@ export function DirectTab({
                         alt="thumb" 
                       />
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                          <Button size="icon" variant="ghost" onClick={() => setPlayingVideo({ url: displayUrl, title: displayTitle })} className="rounded-full h-8 w-8 bg-blue-600/80 hover:bg-blue-600 text-white scale-75 group-hover/thumb:scale-100 transition-transform">
+                          <Button size="icon" variant="ghost" onClick={() => setPlayingVideo({ url: displayUrl, title: displayTitle })} className="rounded-full h-8 w-8 bg-primary/80 hover:bg-primary text-primary-foreground scale-75 group-hover/thumb:scale-100 transition-transform">
                             <Play className="w-3 h-3" />
                           </Button>
                       </div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-1">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-wider mb-1">
                       {isPlaylist && isTargeted ? 'Detected Video in Playlist' : 'Detected Content'}
                     </p>
                     <div className="flex items-center justify-between gap-2">
                         <h4 className="text-xs font-bold text-white truncate flex-1">
                           {displayTitle}
                         </h4>
-                        <Button size="sm" variant="ghost" onClick={() => setPlayingVideo({ url: displayUrl, title: displayTitle })} className="h-6 px-2 gap-1 text-[9px] font-black bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-600/20 transition-all opacity-0 group-meta:opacity-100">
+                        <Button size="sm" variant="ghost" onClick={() => setPlayingVideo({ url: displayUrl, title: displayTitle })} className="h-6 px-2 gap-1 text-[9px] font-black bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20 transition-all opacity-0 group-meta:opacity-100">
                           <Youtube className="w-3 h-3" /> WATCH
                         </Button>
                     </div>
@@ -178,10 +178,10 @@ export function DirectTab({
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/40 uppercase tracking-[2px]">Video Quality</label>
             <Select value={quality} onValueChange={(v) => setQuality(v as VideoQuality)}>
-              <SelectTrigger className="bg-slate-900/50 border-white/10">
+              <SelectTrigger className="bg-card/50 border-border/40">
                 <SelectValue placeholder="Select quality" />
               </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-white/10 text-white">
+              <SelectContent className="bg-card border-border text-foreground">
                 <SelectItem value="best">🚀 Best Available</SelectItem>
                 <SelectItem value="1080p">💎 1080p Full HD</SelectItem>
                 <SelectItem value="720p">✨ 720p HD</SelectItem>
@@ -198,7 +198,7 @@ export function DirectTab({
                   value={playlistItems}
                   readOnly
                   placeholder="Auto-generated"
-                  className="bg-black/40 border-white/5 text-[10px] font-mono text-blue-400 opacity-60"
+                   className="bg-card/40 border-border/10 text-[10px] font-mono text-primary opacity-60"
                />
             </div>
           )}
@@ -215,13 +215,13 @@ export function DirectTab({
                       <div className="flex gap-4">
                         <button 
                           onClick={() => setSelectionMode('checkbox')}
-                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${selectionMode === 'checkbox' ? 'text-blue-400' : 'text-white/40 hover:text-white/70'}`}
+                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${selectionMode === 'checkbox' ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground'}`}
                         >
                           <ListChecks className="w-3 h-3" /> Select Videos
                         </button>
                         <button 
                           onClick={() => setSelectionMode('range')}
-                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${selectionMode === 'range' ? 'text-blue-400' : 'text-white/40 hover:text-white/70'}`}
+                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${selectionMode === 'range' ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground'}`}
                         >
                           <ListChecks className="w-3 h-3" /> Range (From-To)
                         </button>
@@ -240,13 +240,13 @@ export function DirectTab({
                               <div 
                                 key={entry.id} 
                                 onClick={() => toggleIndex(entry.index)}
-                                className={`group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 ${selectedIndices.has(entry.index) ? 'bg-blue-600/10 border-blue-600/20' : 'hover:bg-white/5 border-transparent'} border`}
+                                className={`group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 ${selectedIndices.has(entry.index) ? 'bg-primary/10 border-primary/20' : 'hover:bg-muted/30 border-transparent'} border`}
                               >
-                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedIndices.has(entry.index) ? 'bg-blue-600 border-blue-600' : 'border-white/20 group-hover:border-white/40'}`}>
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedIndices.has(entry.index) ? 'bg-primary border-primary' : 'border-border/30 group-hover:border-border/60'}`}>
                                   {selectedIndices.has(entry.index) && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
                                 </div>
                                 <span className="text-[10px] font-bold text-white/30 w-4 shrink-0">{entry.index}</span>
-                                <span className={`text-xs truncate flex-1 ${selectedIndices.has(entry.index) ? 'text-blue-400 font-bold' : 'text-white/60 group-hover:text-white'}`}>
+                                <span className={`text-xs truncate flex-1 ${selectedIndices.has(entry.index) ? 'text-primary font-bold' : 'text-muted-foreground group-hover:text-foreground'}`}>
                                   {entry.title}
                                 </span>
                               </div>
@@ -256,7 +256,7 @@ export function DirectTab({
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center p-8 space-y-6">
                           <div className="flex flex-col items-center gap-2 mb-2">
-                             <Hash className="w-8 h-8 text-blue-600/40" />
+                              <Hash className="w-8 h-8 text-primary/40" />
                              <h3 className="text-[10px] font-black uppercase tracking-[3px] text-white/40">Range Selection</h3>
                           </div>
                           <div className="flex items-center gap-4 bg-white/5 p-6 rounded-2xl border border-white/10 shadow-2xl">
@@ -273,7 +273,7 @@ export function DirectTab({
                                     setRangeFrom(val.toString()); 
                                     setSelectionMode('range'); 
                                   }}
-                                  className="bg-slate-900/50 border-white/10 w-24 text-center h-12 text-lg font-black"
+                                   className="bg-card/50 border-border/40 w-24 text-center h-12 text-lg font-black"
                                 />
                              </div>
                              <ArrowRight className="w-4 h-4 text-white/20 mt-6" />
@@ -290,7 +290,7 @@ export function DirectTab({
                                     setRangeTo(val.toString()); 
                                     setSelectionMode('range'); 
                                   }}
-                                  className="bg-slate-900/50 border-white/10 w-24 text-center h-12 text-lg font-black"
+                                   className="bg-card/50 border-border/40 w-24 text-center h-12 text-lg font-black"
                                 />
                              </div>
                           </div>
@@ -309,14 +309,15 @@ export function DirectTab({
             onClick={onSelectPath}
             variant="outline"
             title={customPath || "Use default path"}
-            className={`h-14 px-4 border-white/10 ${customPath ? 'text-blue-400 bg-blue-400/5 border-blue-400/30' : 'text-white/40'}`}
+            className={`h-14 px-4 ${customPath ? 'text-primary bg-primary/5 border-primary/30' : 'text-muted-foreground border-border/40'}`}
           >
             <Folder className="w-5 h-5" />
           </Button>
           <Button 
             onClick={() => onDownload(url, { playlistItems, quality, downloadPath: customPath || undefined })} 
             disabled={isLoading || !url} 
-            className="h-14 flex-1 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold shadow-2xl shadow-blue-600/30 text-base uppercase tracking-widest"
+            className="h-14 flex-1 gap-2 font-bold shadow-2xl text-base uppercase tracking-widest"
+            style={{ background: 'var(--grad-hero)' }}
           >
             <Download className="w-5 h-5" /> {isLoading ? 'Processing...' : (playlistItems ? 'Resume / Start Download' : 'Start Processing')}
           </Button>

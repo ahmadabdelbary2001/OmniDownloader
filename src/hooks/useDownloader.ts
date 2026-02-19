@@ -35,14 +35,7 @@ export function useDownloader() {
     localStorage.setItem('omni_tasks', JSON.stringify(tasks));
   }, [tasks]);
 
-  const [isQueueActive, setIsQueueActive] = useState(() => {
-    const saved = localStorage.getItem('omni_queue_active');
-    return saved === null ? true : saved === 'true';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('omni_queue_active', String(isQueueActive));
-  }, [isQueueActive]);
+  const isQueueActive = true;
 
   const activeProcessesRef = useRef<Map<string, any>>(new Map());
   const stopRequestedRef = useRef<boolean>(false);
@@ -829,7 +822,6 @@ export function useDownloader() {
     clearTasks,
     getMediaMetadata,
     isQueueActive,
-    setIsQueueActive,
     reorderTask
   };
 }

@@ -3,9 +3,10 @@ import { DownloadTask } from "../../types/downloader";
 import { Progress } from "../ui/progress";
 import { Badge } from "../ui/badge";
 import { 
-    Play, Pause, X, FolderOpen, Loader2, ArrowUp, ArrowDown, 
-    ChevronUp, ChevronDown, Search, ArrowUpDown
+    Play, Pause, X, FolderOpen, ArrowUp, ArrowDown, 
+    ChevronUp, ChevronDown, Search, ArrowUpDown, Plus
 } from "lucide-react";
+import Logo from '../../assets/logo.svg';
 import { Button } from "../ui/button";
 import { cn, parseSizeToBytes } from "../../lib/utils";
 import { Input } from "../ui/input";
@@ -100,79 +101,120 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
 
   const SortIcon = ({ k }: { k: string }) => {
     if (sortKey !== k) return <ArrowUpDown className="w-2.5 h-2.5 opacity-0 group-hover/head:opacity-100 transition-opacity ml-1" />;
-    return sortOrder === 'asc' ? <ChevronUp className="w-2.5 h-2.5 text-blue-400 ml-1" /> : <ChevronDown className="w-2.5 h-2.5 text-blue-400 ml-1" />;
+    return sortOrder === 'asc' ? <ChevronUp className="w-2.5 h-2.5 text-primary ml-1" /> : <ChevronDown className="w-2.5 h-2.5 text-primary ml-1" />;
   };
 
   if (tasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-white/20 p-12">
-        <Loader2 className="w-12 h-12 mb-4 opacity-10" />
-        <p className="font-bold tracking-widest uppercase text-xs">No downloads in list</p>
+      <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
+        {/* Background aurora effect */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-[0.06]" style={{ background: 'var(--grad-aurora)' }} />
+          <div className="absolute bottom-1/4 left-1/4 w-64 h-64 rounded-full opacity-[0.04]" style={{ background: 'radial-gradient(circle, var(--acc-300), transparent)' }} />
+          <div className="absolute top-1/4 right-1/4 w-48 h-48 rounded-full opacity-[0.04]" style={{ background: 'radial-gradient(circle, var(--lav-400), transparent)' }} />
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center gap-6 max-w-sm text-center p-8">
+          {/* Logo Hero */}
+          <div
+            className="w-28 h-28 rounded-3xl flex items-center justify-center shadow-2xl relative"
+            style={{ background: 'var(--grad-hero)' }}
+          >
+            <div className="absolute inset-0 rounded-3xl opacity-40" style={{ background: 'radial-gradient(ellipse at 30% 30%, rgba(255,255,255,0.25) 0%, transparent 60%)' }} />
+            <img src={Logo} alt="OmniDownloader" className="w-16 h-16 drop-shadow-xl relative z-10" />
+          </div>
+
+          {/* Title & Sub */}
+          <div className="space-y-2">
+            <h2 className="text-lg font-black tracking-tight" style={{ color: 'var(--acc-300)' }}>
+              Ready to Download
+            </h2>
+            <p className="text-xs font-bold text-muted-foreground tracking-widest uppercase">
+              No downloads in your list yet
+            </p>
+            <p className="text-[11px] text-muted-foreground/60 leading-relaxed mt-2">
+              Add a URL by clicking <strong className="text-accent">Add URL</strong> in the toolbar above
+            </p>
+          </div>
+
+          {/* Decorative badge */}
+          <div
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border"
+            style={{
+              background: 'rgba(126,202,196,0.08)',
+              borderColor: 'rgba(126,202,196,0.2)',
+              color: 'var(--acc-400)'
+            }}
+          >
+            <Plus className="w-3 h-3" />
+            Add URL to get started
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden border-t border-white/5">
+    <div className="flex flex-col h-full overflow-hidden border-t border-border">
       {/* Filter Toolbar */}
-      <div className="flex items-center justify-between p-2 px-3 bg-black/20 gap-4 border-b border-white/5">
-        <div className="flex items-center gap-1 bg-white/5 rounded-md p-0.5 border border-white/5">
+      <div className="flex items-center justify-between p-2 px-3 bg-muted/20 gap-4 border-b border-border">
+        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5 border border-border">
             <Button 
                 variant="ghost" 
                 size="sm" 
-                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest", filterStatus === 'all' ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
+                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest transition-all", filterStatus === 'all' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
                 onClick={() => setFilterStatus('all')}
             >All</Button>
             <Button 
                 variant="ghost" 
                 size="sm" 
-                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest", filterStatus === 'ongoing' ? "bg-blue-500/20 text-blue-400" : "text-white/40 hover:text-white")}
+                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest transition-all", filterStatus === 'ongoing' ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground")}
                 onClick={() => setFilterStatus('ongoing')}
             >Ongoing</Button>
             <Button 
                 variant="ghost" 
                 size="sm" 
-                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest", filterStatus === 'finished' ? "bg-green-500/20 text-green-400" : "text-white/40 hover:text-white")}
+                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest transition-all", filterStatus === 'finished' ? "bg-accent/20 text-accent-foreground" : "text-muted-foreground hover:text-foreground")}
                 onClick={() => setFilterStatus('finished')}
             >Finished</Button>
             <Button 
                 variant="ghost" 
                 size="sm" 
-                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest", filterStatus === 'paused' ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white")}
+                className={cn("h-6 text-[9px] px-2 font-black uppercase tracking-widest transition-all", filterStatus === 'paused' ? "bg-destructive/20 text-destructive" : "text-muted-foreground hover:text-foreground")}
                 onClick={() => setFilterStatus('paused')}
             >Paused/Failed</Button>
         </div>
 
         <div className="relative flex-1 max-w-[230px]">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
             <Input 
                 placeholder="SEARCH DOWNLOADS..." 
-                className="h-7 bg-white/5 border-white/5 pl-7 text-[10px] font-bold tracking-widest uppercase focus-visible:ring-blue-500/50"
+                className="h-7 bg-muted/50 border-border pl-7 text-[10px] font-bold tracking-widest uppercase focus-visible:ring-primary/50 transition-all"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-white">
+                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     <X className="w-3 h-3" />
                 </button>
             )}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-1 p-3 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/40 border-b border-white/5 select-none">
-        <div className="col-span-1 flex items-center cursor-pointer hover:text-white transition-colors group/head" onClick={() => toggleSort('queueOrder')}>
+      <div className="grid grid-cols-12 gap-1 p-3 bg-muted/30 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border select-none">
+        <div className="col-span-1 flex items-center cursor-pointer hover:text-foreground transition-colors group/head" onClick={() => toggleSort('queueOrder')}>
             # <SortIcon k="queueOrder" />
         </div>
-        <div className="col-span-4 flex items-center cursor-pointer hover:text-white transition-colors group/head" onClick={() => toggleSort('title')}>
+        <div className="col-span-4 flex items-center cursor-pointer hover:text-foreground transition-colors group/head" onClick={() => toggleSort('title')}>
             File Name <SortIcon k="title" />
         </div>
-        <div className="col-span-1 flex items-center cursor-pointer hover:text-white transition-colors group/head" onClick={() => toggleSort('size')}>
+        <div className="col-span-1 flex items-center cursor-pointer hover:text-foreground transition-colors group/head" onClick={() => toggleSort('size')}>
             Size <SortIcon k="size" />
         </div>
-        <div className="col-span-2 flex items-center cursor-pointer hover:text-white transition-colors group/head" onClick={() => toggleSort('status')}>
+        <div className="col-span-2 flex items-center cursor-pointer hover:text-foreground transition-colors group/head" onClick={() => toggleSort('status')}>
             Status <SortIcon k="status" />
         </div>
-        <div className="col-span-3 flex items-center cursor-pointer hover:text-white transition-colors group/head" onClick={() => toggleSort('progress')}>
+        <div className="col-span-3 flex items-center cursor-pointer hover:text-foreground transition-colors group/head" onClick={() => toggleSort('progress')}>
             Progress <SortIcon k="progress" />
         </div>
         <div className="col-span-1 text-right flex items-center justify-end">
@@ -184,68 +226,68 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
           <div 
             key={task.id} 
             className={cn(
-                "grid grid-cols-12 gap-1 p-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center group relative",
-                task.status === 'downloading' && "bg-blue-500/[0.01]"
+                "grid grid-cols-12 gap-1 p-3 border-b border-border hover:bg-muted/30 transition-colors items-center group relative",
+                task.status === 'downloading' && "bg-primary/[0.03]"
             )}
           >
             <div className="col-span-1 flex flex-col items-center justify-center gap-0.5">
                {isQueueActive ? (
                   <>
-                    <button onClick={(e) => { e.stopPropagation(); onReorder(task.id, 'up'); }} className="text-white/10 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); onReorder(task.id, 'up'); }} className="text-muted-foreground/30 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                         <ArrowUp className="w-2.5 h-2.5" />
                     </button>
-                    <span className="text-[10px] font-black text-blue-500/60 leading-none">#{task.queueOrder || '-'}</span>
-                    <button onClick={(e) => { e.stopPropagation(); onReorder(task.id, 'down'); }} className="text-white/10 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] font-black text-primary leading-none">#{task.queueOrder || '-'}</span>
+                    <button onClick={(e) => { e.stopPropagation(); onReorder(task.id, 'down'); }} className="text-muted-foreground/30 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                         <ArrowDown className="w-2.5 h-2.5" />
                     </button>
                   </>
                ) : (
-                  <span className="text-[10px] font-black text-white/10">#{task.queueOrder || '-'}</span>
+                  <span className="text-[10px] font-black text-muted-foreground/30">#{task.queueOrder || '-'}</span>
                )}
             </div>
 
             <div className="col-span-4 flex items-center gap-3 overflow-hidden">
               {task.thumbnail ? (
-                <img src={task.thumbnail} className="w-10 h-6 object-cover rounded bg-black/40" alt="" />
+                <img src={task.thumbnail} className="w-10 h-6 object-cover rounded bg-muted border border-border" alt="" />
               ) : (
-                <div className="w-10 h-6 rounded bg-white/5 flex items-center justify-center">
+                <div className="w-10 h-6 rounded bg-muted border border-border flex items-center justify-center">
                    <Badge variant="outline" className="text-[8px] p-0 px-1 opacity-40">{task.service}</Badge>
                 </div>
               )}
               <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-bold text-white/90 truncate">{task.title}</span>
-                <span className="text-[9px] text-white/30 truncate uppercase tracking-tighter">{task.url}</span>
+                <span className="text-xs font-bold text-foreground/90 truncate">{task.title}</span>
+                <span className="text-[9px] text-muted-foreground truncate uppercase tracking-tighter">{task.url}</span>
               </div>
             </div>
 
-            <div className="col-span-1 text-xs text-white/60 font-mono truncate">
+            <div className="col-span-1 text-xs text-muted-foreground font-mono truncate">
               {task.size || 'Unknown'}
             </div>
 
             <div className="col-span-2 flex items-center gap-1.5">
               {task.status === 'downloading' && (
                 <div className="flex flex-col gap-0.5">
-                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/20 text-[9px] h-4">Active</Badge>
-                  <span className="text-[9px] font-mono text-blue-400/70">{task.speed}</span>
+                  <Badge className="bg-primary/20 text-primary border-primary/20 text-[9px] h-4">Active</Badge>
+                  <span className="text-[9px] font-mono text-primary/70">{task.speed}</span>
                 </div>
               )}
-              {task.status === 'completed' && <Badge className="bg-green-500/20 text-green-400 border-green-500/20 text-[9px] h-4">Finished</Badge>}
-              {task.status === 'paused' && <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/20 text-[9px] h-4">Paused</Badge>}
-              {task.status === 'failed' && <Badge className="bg-red-500/20 text-red-400 border-red-500/20 text-[9px] h-4">Failed</Badge>}
-              {task.status === 'waiting' && <Badge className="bg-white/5 text-white/40 border-white/10 text-[9px] h-4">Queued</Badge>}
+              {task.status === 'completed' && <Badge className="text-[9px] h-4" style={{ background: 'rgba(126,202,196,0.2)', color: 'var(--acc-400)', borderColor: 'rgba(126,202,196,0.25)' }}>Finished</Badge>}
+              {task.status === 'paused' && <Badge className="bg-destructive/10 text-destructive border-destructive/10 text-[9px] h-4">Paused</Badge>}
+              {task.status === 'failed' && <Badge className="bg-destructive/20 text-destructive border-destructive/20 text-[9px] h-4">Failed</Badge>}
+              {task.status === 'waiting' && <Badge className="bg-muted text-muted-foreground border-border text-[9px] h-4">Queued</Badge>}
             </div>
 
             <div className="col-span-3 flex flex-col gap-1 pr-4">
-              <div className="flex justify-between text-[9px] font-bold text-white/30 tracking-tighter">
+              <div className="flex justify-between text-[9px] font-bold text-muted-foreground tracking-tighter">
                 <span>{task.progress.toFixed(1)}%</span>
                 {task.status === 'downloading' && <span>{task.eta} left</span>}
               </div>
-              <Progress value={task.progress} className="h-1 bg-white/5" />
+              <Progress value={task.progress} className="h-1 bg-muted" />
             </div>
 
             <div className="col-span-1 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               {task.status === 'downloading' && (
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-yellow-500 hover:text-yellow-400" onClick={() => onPause(task.id)}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive/80" onClick={() => onPause(task.id)}>
                   <Pause className="w-3.5 h-3.5" />
                 </Button>
               )}
@@ -253,19 +295,19 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
                 <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="h-7 w-7 text-blue-500 hover:text-blue-400 group/btn relative" 
+                    className="h-7 w-7 text-primary hover:text-primary group/btn relative" 
                     onClick={() => onResume(task.id)}
                 >
                   <Play className="w-3.5 h-3.5" />
-                  {task.status === 'waiting' && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse shadow-[0_0_5px_rgba(96,165,250,0.5)]" />}
+                  {task.status === 'waiting' && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_5px_rgba(var(--primary),0.5)]" />}
                 </Button>
               )}
               {task.status === 'completed' && (
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-green-500 hover:text-green-400" onClick={() => onOpenFolder(task.id)}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-primary hover:text-primary" onClick={() => onOpenFolder(task.id)}>
                   <FolderOpen className="w-3.5 h-3.5" />
                 </Button>
               )}
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-white/20 hover:text-red-500" onClick={() => onRemove(task.id)}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground/30 hover:text-destructive" onClick={() => onRemove(task.id)}>
                 <X className="w-3.5 h-3.5" />
               </Button>
             </div>

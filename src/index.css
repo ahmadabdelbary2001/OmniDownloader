@@ -1,92 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════
+   LAVENDER TECH — RAW DESIGN TOKENS
+   (hex values for use in inline styles / non-Tailwind contexts)
+═══════════════════════════════════════════ */
+:root {
+  /* Primary Scale */
+  --lav-50:  #F5F3FA;
+  --lav-100: #EBE7F4;
+  --lav-200: #CFC7E9;
+  --lav-300: #B3A7DE;
+  --lav-400: #9787C3;
+  --lav-500: #7B68A0;  /* BASE PRIMARY */
+  --lav-600: #634D7F;
+  --lav-700: #4D3A61;
+  --lav-800: #372841;
+  --lav-900: #221624;
+
+  /* Secondary (Light Lavender) */
+  --sec-100: #F0EDF8;
+  --sec-200: #DED8F0;
+  --sec-300: #C9BEE0;  /* BASE SECONDARY */
+  --sec-400: #B4A7D4;
+  --sec-500: #9E90C7;
+
+  /* Accent (Teal Mint) */
+  --acc-50:  #E8F8F7;
+  --acc-100: #C2EDEB;
+  --acc-200: #9BE2DF;
+  --acc-300: #7ECAC4;  /* BASE ACCENT */
+  --acc-400: #5BBAB3;
+  --acc-500: #3AA9A1;
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #9787C3 0%, #7B68A0 50%, #4D3A61 100%);
+  --grad-accent:  linear-gradient(135deg, #7ECAC4 0%, #3AA9A1 100%);
+  --grad-hero:    linear-gradient(135deg, #7B68A0 0%, #5BBAB3 100%);
+  --grad-aurora:  linear-gradient(135deg, #9787C3 0%, #7ECAC4 50%, #5BBAB3 100%);
+  --grad-subtle:  linear-gradient(180deg, #F5F3FA 0%, #EBE7F4 100%);
+  --grad-dark:    linear-gradient(135deg, #1E1A2E 0%, #2A2140 100%);
+}
+
+.bg-grad-hero {
+  background: var(--grad-hero);
+}
+.bg-grad-accent {
+  background: var(--grad-accent);
+}
+.bg-grad-dark {
+  background: var(--grad-dark);
+}
+.bg-grad-primary {
+  background: var(--grad-primary);
+}
+.bg-grad-aurora {
+  background: var(--grad-aurora);
+}
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* ═══════════════════════════════════════════
+       LAVENDER TECH — LIGHT MODE TOKENS
+       Source: lavender_tech_style_guide.html §03
+    ═══════════════════════════════════════════ */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* bg-base: #F5F3FA */
+    --background:   258 41% 97%;
+    /* text-primary: #2A1F3D */
+    --foreground:   261 33% 18%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* bg-surface: #FFFFFF */
+    --card:         0 0% 100%;
+    --card-foreground: 261 33% 18%;
+    --popover:      0 0% 100%;
+    --popover-foreground: 261 33% 18%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* primary: #7B68A0 — CTA Buttons, Links, Focus */
+    --primary:      261 21% 52%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* bg-elevated: #EBE7F4 — Secondary surface */
+    --secondary:    258 39% 93%;
+    --secondary-foreground: 261 33% 18%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* bg-elevated: #EBE7F4 — Muted backgrounds */
+    --muted:        258 39% 93%;
+    /* text-secondary: #5D4F7A */
+    --muted-foreground: 261 21% 40%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* accent: #7ECAC4 — Highlights, Tags, Progress */
+    --accent:       176 41% 64%;
+    --accent-foreground: 261 33% 18%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive (error red) */
+    --destructive:  0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* border: #DCD6EE */
+    --border:       258 46% 89%;
+    /* input: #DCD6EE */
+    --input:        258 46% 89%;
+    /* ring: primary lavender */
+    --ring:         261 21% 52%;
 
-    --radius: 0.5rem;
+    --radius: 1rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar (inherits light mode) */
+    --sidebar-background:       258 41% 97%;
+    --sidebar-foreground:       261 21% 40%;
+    --sidebar-primary:          261 21% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:           176 41% 64%;
+    --sidebar-accent-foreground:261 33% 18%;
+    --sidebar-border:           258 46% 89%;
+    --sidebar-ring:             261 21% 52%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* ═══════════════════════════════════════════
+       LAVENDER TECH — DARK MODE TOKENS
+       Source: lavender_tech_style_guide.html §03
+    ═══════════════════════════════════════════ */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    /* bg-base: #0F0B1A */
+    --background:   258 40% 7%;
+    /* text-primary: #EBE7F4 */
+    --foreground:   258 39% 93%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    /* bg-surface: #1C1730 — Cards, Panels, Modals */
+    --card:         255 35% 14%;
+    --card-foreground: 258 39% 93%;
+    --popover:      255 35% 14%;
+    --popover-foreground: 258 39% 93%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* primary (dark): #9787C3 — lighter shade for AA/AAA contrast */
+    --primary:      258 35% 65%;
+    --primary-foreground: 258 40% 7%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* bg-elevated: #261E3A — Table Headers, Hover States */
+    --secondary:    258 33% 17%;
+    --secondary-foreground: 258 39% 93%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* bg-elevated: #261E3A — Muted surfaces */
+    --muted:        258 33% 17%;
+    /* text-secondary: #C9BEE0 */
+    --muted-foreground: 258 36% 81%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* accent: #7ECAC4 — Same in both modes */
+    --accent:       176 41% 64%;
+    --accent-foreground: 258 40% 7%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive — slightly brighter for dark contrast */
+    --destructive:  0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* border: #3D3252 */
+    --border:       258 24% 26%;
+    /* input: #3D3252 */
+    --input:        258 24% 26%;
+    /* ring: accent teal for maximum visibility on dark */
+    --ring:         176 41% 64%;
+
+    /* Sidebar (inherits dark mode) */
+    --sidebar-background:        258 40% 7%;
+    --sidebar-foreground:        258 36% 81%;
+    --sidebar-primary:           176 41% 64%; /* Explicitly use Teal Accent as sidebar primary */
+    --sidebar-primary-foreground:258 40% 7%;
+    --sidebar-accent:            176 41% 64%;
+    --sidebar-accent-foreground: 258 39% 93%;
+    --sidebar-border:            258 24% 26%;
+    --sidebar-ring:              176 41% 64%;
   }
 }
 
@@ -97,5 +184,29 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Lavender-themed scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--lav-500);
+    border-radius: 100px;
+    opacity: 0.5;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--lav-400);
   }
 }

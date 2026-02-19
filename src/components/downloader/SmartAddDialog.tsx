@@ -192,11 +192,11 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-950 border-white/10 text-white max-w-2xl shadow-2xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
+      <DialogContent className="bg-background border-border text-foreground max-w-2xl shadow-2xl p-0 overflow-hidden flex flex-col max-h-[90vh] transition-colors duration-500">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
-            <div className="p-2 bg-blue-600/20 rounded-lg">
-                <LinkIcon className="text-blue-500 w-5 h-5" /> 
+            <div className="p-2 bg-primary/20 rounded-lg">
+                <LinkIcon className="text-primary w-5 h-5" /> 
             </div>
             Add New Download
           </DialogTitle>
@@ -205,16 +205,29 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
         <ScrollArea className="flex-1 px-6 pb-6">
             <div className="space-y-6 py-2">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-white/30 tracking-widest">URL / Address</label>
+                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">URL / Address</label>
                 <div className="flex gap-2">
                     <Input 
                         value={url}
                         onChange={handleUrlChange}
                         placeholder="Paste link here..."
-                        className="bg-black/40 border-white/10 h-11 focus-visible:ring-blue-500/50"
+                        className="bg-muted/40 border-border h-11 focus-visible:ring-primary/50 transition-all"
                     />
-                    <Button onClick={startAnalysis} disabled={!url || isAnalyzing} variant="secondary" className="h-11 px-6 font-bold uppercase text-xs hover:bg-white/10 transition-colors">
+                    <Button onClick={startAnalysis} disabled={!url || isAnalyzing} variant="secondary" className="h-11 px-6 font-bold uppercase text-xs transition-all">
                         {isAnalyzing ? <Loader2 className="animate-spin" /> : "Analyze"}
+                    </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">Save Location</label>
+                <div className="flex gap-1.5">
+                    <div className="flex-1 px-4 py-2.5 bg-muted/40 border border-border rounded-xl text-[10px] font-bold text-muted-foreground truncate flex items-center transition-all">
+                        <Folder className="w-3.5 h-3.5 mr-2 text-primary/60" />
+                        {customPath || defaultPath}
+                    </div>
+                    <Button onClick={handlePickFolder} variant="outline" size="icon" className="h-11 w-11 rounded-xl border-border hover:text-primary hover:bg-muted transition-all shrink-0">
+                        <Folder className="w-4 h-4" />
                     </Button>
                 </div>
               </div>
@@ -223,7 +236,7 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                     {/* Video Player Section */}
                     {(embedUrl || previewUrl) && (
-                        <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/5 shadow-2xl relative group">
+                        <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-border shadow-2xl relative group">
                             <iframe 
                                 src={previewUrl || embedUrl || ""}
                                 className="w-full h-full"
@@ -244,18 +257,18 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                         </div>
                     )}
 
-                    <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/[0.07] to-indigo-500/[0.07] border border-blue-500/10 flex gap-4 items-center">
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/[0.1] to-secondary/[0.1] border border-primary/10 flex gap-4 items-center transition-all">
                         {!embedUrl && (
-                            <div className="w-24 h-16 rounded-lg overflow-hidden bg-black shrink-0 relative border border-white/5">
+                            <div className="w-24 h-16 rounded-lg overflow-hidden bg-black shrink-0 relative border border-border">
                                 <img src={metadata.thumbnail} className="w-full h-full object-cover" alt="" />
-                                <div className="absolute inset-0 bg-blue-600/10 mix-blend-overlay" />
+                                <div className="absolute inset-0 bg-primary/10 mix-blend-overlay" />
                             </div>
                         )}
                         <div className="flex-1 overflow-hidden">
-                            <h4 className="text-sm font-black text-white/90 truncate leading-tight">{metadata.title}</h4>
+                            <h4 className="text-sm font-black text-foreground/90 truncate leading-tight">{metadata.title}</h4>
                             <div className="flex flex-col gap-1 mt-1">
-                                <p className="text-[9px] uppercase font-black text-blue-400/80 tracking-widest flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                <p className="text-[9px] uppercase font-black text-primary/80 tracking-widest flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                                     {metadata.isPlaylist ? `${metadata.entries?.length} Videos Found` : 'Media Ready'}
                                 </p>
                                 {metadata.isPlaylist && (
@@ -264,7 +277,7 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                             size="sm" 
                                             variant={isPlaylistView ? "default" : "ghost"}
                                             onClick={() => setIsPlaylistView(true)}
-                                            className={cn("h-7 text-[9px] uppercase font-black tracking-widest px-3", isPlaylistView ? "bg-blue-600 hover:bg-blue-500" : "text-white/40 hover:text-white")}
+                                            className={cn("h-7 text-[9px] uppercase font-black tracking-widest px-3 transition-all", isPlaylistView ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                                         >
                                             <List className="w-3 h-3 mr-1.5" /> Playlist
                                         </Button>
@@ -272,7 +285,7 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                             size="sm" 
                                             variant={!isPlaylistView ? "default" : "ghost"}
                                             onClick={() => setIsPlaylistView(false)}
-                                            className={cn("h-7 text-[9px] uppercase font-black tracking-widest px-3", !isPlaylistView ? "bg-blue-600 hover:bg-blue-500" : "text-white/40 hover:text-white")}
+                                            className={cn("h-7 text-[9px] uppercase font-black tracking-widest px-3 transition-all", !isPlaylistView ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                                         >
                                             <PlayCircle className="w-3 h-3 mr-1.5" /> Single
                                         </Button>
@@ -280,17 +293,17 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                 )}
                             </div>
                         </div>
-                        {!metadata.isPlaylist && <CheckCircle2 className="text-green-500 w-5 h-5 shrink-0" />}
+                        {!metadata.isPlaylist && <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: 'var(--acc-400)' }} />}
                     </div>
 
                     {metadata.isPlaylist && isPlaylistView && (
-                        <div className="space-y-3 rounded-2xl bg-black/40 border border-white/5 overflow-hidden shadow-inner">
-                            <div className="flex justify-between items-center px-4 py-2.5 border-b border-white/5 bg-white/[0.02]">
-                                <label className="text-[9px] font-black uppercase text-white/30 tracking-[2px]">Select Videos</label>
+                        <div className="space-y-3 rounded-2xl bg-muted/40 border border-border overflow-hidden shadow-inner transition-colors">
+                            <div className="flex justify-between items-center px-4 py-2.5 border-b border-border bg-background/50">
+                                <label className="text-[9px] font-black uppercase text-muted-foreground tracking-[2px]">Select Videos</label>
                                 <div className="flex gap-3">
-                                    <button onClick={selectAll} className="text-[9px] font-black uppercase text-blue-400 hover:text-blue-300 transition-colors">All</button>
-                                    <div className="w-px h-3 bg-white/10" />
-                                    <button onClick={selectNone} className="text-[9px] font-black uppercase text-red-400 hover:text-red-300 transition-colors">None</button>
+                                    <button onClick={selectAll} className="text-[9px] font-black uppercase text-primary hover:text-primary/80 transition-colors">All</button>
+                                    <div className="w-px h-3 bg-border" />
+                                    <button onClick={selectNone} className="text-[9px] font-black uppercase text-destructive hover:text-destructive/80 transition-colors">None</button>
                                 </div>
                             </div>
                             <ScrollArea className="h-[220px] px-3 overflow-y-auto">
@@ -304,27 +317,27 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                                 onClick={() => toggleItem(entry.index)}
                                                 className={cn(
                                                     "group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border",
-                                                    isSelected ? "bg-blue-500/10 border-blue-500/20" : "hover:bg-white/[0.03] border-transparent",
-                                                    isRequested && "ring-1 ring-blue-500/50"
+                                                    isSelected ? "bg-primary/10 border-primary/20" : "hover:bg-muted border-transparent",
+                                                    isRequested && "ring-1 ring-primary/50"
                                                 )}
                                             >
                                                 <div className={cn(
                                                     "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
-                                                    isSelected ? "bg-blue-600 border-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.3)]" : "border-white/10 group-hover:border-white/30"
+                                                    isSelected ? "bg-primary border-primary shadow-[0_0_10px_rgba(var(--primary),0.3)]" : "border-border group-hover:border-primary/30"
                                                 )}>
-                                                    {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                                    {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
                                                 </div>
-                                                <div className="w-14 h-8 rounded-md overflow-hidden bg-black shrink-0 border border-white/5">
+                                                <div className="w-14 h-8 rounded-md overflow-hidden bg-black shrink-0 border border-border">
                                                     <img src={entry.thumbnail} className="w-full h-full object-cover" alt="" />
                                                 </div>
                                                 <div className="flex-1 overflow-hidden">
                                                     <p className={cn(
                                                         "text-[10px] font-bold truncate",
-                                                        isSelected ? "text-white" : "text-white/50 group-hover:text-white/80"
+                                                        isSelected ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                                                     )}>
                                                     {entry.index}. {entry.title}
                                                     </p>
-                                                    {isRequested && <span className="text-[8px] font-black uppercase text-blue-500 tracking-widest mt-0.5 block">Original Link Task</span>}
+                                                    {isRequested && <span className="text-[8px] font-black uppercase text-primary tracking-widest mt-0.5 block transition-colors">Original Link Task</span>}
                                                 </div>
                                                 <Button 
                                                     size="icon" 
@@ -333,7 +346,7 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                                         e.stopPropagation();
                                                         handlePreview(entry.id);
                                                     }}
-                                                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-blue-600 hover:text-white transition-all border border-white/5 shrink-0"
+                                                    className="w-8 h-8 rounded-full bg-muted/50 hover:bg-primary hover:text-primary-foreground transition-all border border-border shrink-0"
                                                 >
                                                     <PlayCircle className="w-4 h-4" />
                                                 </Button>
@@ -342,54 +355,52 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                     })}
                                 </div>
                             </ScrollArea>
-                            <div className="px-4 py-3 border-t border-white/5 bg-white/[0.03] flex justify-between items-center">
-                                <span className="text-[9px] font-black text-white/20 uppercase tracking-[2px]">{selectedIndices.size} Selected</span>
+                            <div className="px-4 py-3 border-t border-border bg-background/50 flex justify-between items-center">
+                                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[2px]">{selectedIndices.size} Selected</span>
                                 <div className="max-w-[150px] overflow-hidden">
-                                    <span className="text-[9px] font-mono text-blue-400/60 truncate block">{playlistItems || 'No items'}</span>
+                                    <span className="text-[9px] font-mono text-primary truncate block">{playlistItems || 'No items'}</span>
                                 </div>
                             </div>
                         </div>
                     )}
-                </div>
-              )}
 
-              {metadata && (!metadata.isPlaylist || !isPlaylistView) && (
-                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-white/30 tracking-widest px-1">Quality</label>
-                        <Select value={quality} onValueChange={(v: any) => setQuality(v)}>
-                            <SelectTrigger className="bg-black/40 border-white/10 h-11 rounded-xl focus:ring-blue-500/50">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-white/10 text-white rounded-xl">
-                                <SelectItem value="best">Best Available</SelectItem>
-                                <SelectItem value="1080p">1080p Full HD</SelectItem>
-                                <SelectItem value="720p">720p HD</SelectItem>
-                                <SelectItem value="480p">480p Medium</SelectItem>
-                                <SelectItem value="audio">Audio (MP3)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-white/30 tracking-widest px-1">Location</label>
-                        <div className="flex gap-1.5">
-                            <div className="flex-1 px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-[10px] font-bold text-white/40 truncate flex items-center">
-                                {customPath ? customPath.split(/[\\/]/).pop() : defaultPath.split(/[\\/]/).pop()}
+                    <div className="grid grid-cols-2 gap-4">
+                        {!metadata.isPlaylist || !isPlaylistView ? (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">Quality</label>
+                                <Select value={quality} onValueChange={(v: any) => setQuality(v)}>
+                                    <SelectTrigger className="bg-muted/40 border-border h-11 rounded-xl focus:ring-primary/50 transition-all">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-card border-border text-foreground rounded-xl">
+                                        <SelectItem value="best">Best Available</SelectItem>
+                                        <SelectItem value="1080p">1080p Full HD</SelectItem>
+                                        <SelectItem value="720p">720p HD</SelectItem>
+                                        <SelectItem value="480p">480p Medium</SelectItem>
+                                        <SelectItem value="audio">Audio (MP3)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            <Button onClick={handlePickFolder} variant="outline" size="icon" className="h-11 w-11 rounded-xl border-white/10 hover:text-blue-400 hover:bg-white/5 transition-all shrink-0">
-                                <Folder className="w-4 h-4" />
-                            </Button>
-                        </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">Playlist Range</label>
+                                <Input 
+                                    value={playlistItems}
+                                    onChange={(e) => setPlaylistItems(e.target.value)}
+                                    placeholder="e.g. 1,2,5-10"
+                                    className="bg-muted/40 border-border h-11 rounded-xl text-[11px] font-mono focus-visible:ring-primary/50 transition-all"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
               )}
             </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 pt-2 gap-2 border-t border-white/5 bg-black/20">
-          <Button variant="ghost" onClick={onClose} className="uppercase font-black text-[10px] tracking-widest hover:bg-white/5 px-6">Cancel</Button>
-          <Button onClick={handleAdd} disabled={!url || isAnalyzing} className="bg-blue-600 hover:bg-blue-500 font-black uppercase text-[10px] tracking-widest px-10 rounded-xl h-11 shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+        <DialogFooter className="p-6 pt-2 gap-2 border-t border-border bg-muted/20 transition-colors duration-500">
+          <Button variant="ghost" onClick={onClose} className="uppercase font-black text-[10px] tracking-widest hover:bg-muted px-6 transition-all">Cancel</Button>
+          <Button onClick={handleAdd} disabled={!url || isAnalyzing} className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] tracking-widest px-10 rounded-xl h-11 shadow-[0_0_20px_rgba(var(--primary),0.3)] transition-all">
             Add to Queue
           </Button>
         </DialogFooter>

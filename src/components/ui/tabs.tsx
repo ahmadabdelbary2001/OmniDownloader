@@ -19,7 +19,7 @@ const Tabs = ({ value, onValueChange, className, children }: { value: string, on
 }
 
 const TabsList = ({ className, children }: { className?: string, children: React.ReactNode }) => (
-  <div className={cn("inline-flex h-9 items-center justify-center rounded-lg bg-slate-900/50 p-1 text-slate-500", className)}>
+  <div className={cn("inline-flex h-9 items-center justify-center rounded-lg bg-muted/50 p-1 text-muted-foreground", className)}>
     {children}
   </div>
 )
@@ -34,7 +34,7 @@ const TabsTrigger = ({ value, className, children }: { value: string, className?
       onClick={() => context.onValueChange(value)}
       className={cn(
         "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
-        isActive ? "bg-blue-600 text-white shadow" : "hover:text-slate-300",
+        isActive ? "bg-primary text-primary-foreground shadow" : "hover:text-foreground",
         className
       )}
     >
