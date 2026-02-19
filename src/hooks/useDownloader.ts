@@ -276,13 +276,22 @@ export function useDownloader() {
            ffmpegPath = "/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu";
         }
 
-        let qualityArgs = "";
-        switch (options.quality) {
-          case '1080p': qualityArgs = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"; break;
-          case '720p':  qualityArgs = "bestvideo[height<=720]+bestaudio/best[height<=720]"; break;
-          case '480p':  qualityArgs = "bestvideo[height<=480]+bestaudio/best[height<=480]"; break;
-          case 'audio': qualityArgs = "bestaudio/best"; break;
-          default:      qualityArgs = "bestvideo+bestaudio/best";
+        // Build quality format string dynamically from any height value e.g. '2160p','1080p','720p'
+        let qualityArgs: string;
+        const q = options.quality || 'best';
+        if (q === 'audio') {
+          qualityArgs = "bestaudio/best";
+        } else if (q === 'best') {
+          qualityArgs = "bestvideo+bestaudio/best";
+        } else {
+          // Extract numeric height from string like '1080p' -> 1080
+          const heightMatch = q.match(/(\d+)/);
+          if (heightMatch) {
+            const h = parseInt(heightMatch[1]);
+            qualityArgs = `bestvideo[height<=${h}][vcodec!*=av01]+bestaudio/bestvideo[height<=${h}]+bestaudio/best[height<=${h}]/best`;
+          } else {
+            qualityArgs = "bestvideo+bestaudio/best";
+          }
         }
 
         args = [
@@ -577,12 +586,57 @@ export function useDownloader() {
       
       const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
       
+      // For single YouTube videos: make a second call without --flat-playlist to get full format list
+      let availableQualities: string[] = [];
+      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+
+      if (!isPlaylist && isYouTube) {
+        try {
+          addLog(`🎞️ Fetching available qualities...`);
+          const fmtCmd = Command.sidecar("ytdlp", [
+            "--js-runtimes", "node",
+            "--dump-single-json",
+            "--no-download",
+            "--no-check-certificate",
+            url
+          ]);
+          let fmtStdout = '';
+          fmtCmd.stdout.on('data', (d: string) => { fmtStdout += d; });
+          await new Promise<void>(resolve => {
+            fmtCmd.on('close', () => resolve());
+            fmtCmd.spawn().catch(() => resolve());
+          });
+          if (fmtStdout) {
+            const fmtJson = JSON.parse(fmtStdout);
+            const formats: any[] = fmtJson.formats || [];
+            // Extract unique heights from video-only or combined streams
+            const heights = new Set<number>();
+            let hasAudio = false;
+            for (const f of formats) {
+              if (f.height && f.height > 0) heights.add(f.height);
+              if (f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none')) hasAudio = true;
+            }
+            // Sort heights descending
+            const sortedHeights = Array.from(heights).filter(h => h >= 144).sort((a, b) => b - a);
+            availableQualities = sortedHeights.map(h => `${h}p`);
+            if (hasAudio) availableQualities.push('audio');
+            // Always include 'best' at the top
+            availableQualities = ['best', ...availableQualities];
+            addLog(`✅ Available qualities: ${availableQualities.slice(1).join(', ')}`);
+          }
+        } catch (e) {
+          addLog(`⚠️ Could not fetch available qualities: ${e}`);
+          availableQualities = ['best', '1080p', '720p', '480p', 'audio'];
+        }
+      }
+
       const metadata: MediaMetadata = {
         id: json.id,
         title: json.title || (isPlaylist ? "Playlist" : "Unknown Title"),
         thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
         isPlaylist: isPlaylist,
         formats: json.formats || [],
+        availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
         entries: json.entries ? json.entries.map((e: any, i: number) => ({
           id: e.id || String(i),
           title: e.title || `Video ${i + 1}`,

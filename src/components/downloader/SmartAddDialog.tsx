@@ -19,6 +19,9 @@ interface SmartAddDialogProps {
   onSelectPath: () => Promise<string | undefined>;
 }
 
+const isYouTubeUrl = (u: string) =>
+  u.includes("youtube.com") || u.includes("youtu.be");
+
 export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, defaultPath, onSelectPath }: SmartAddDialogProps) {
   const [url, setUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -61,6 +64,7 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
     setMetadata(null);
     setEmbedUrl(null);
     setPreviewUrl(null);
+    setQuality("best"); // reset quality when URL changes
   };
 
   const startAnalysis = async () => {
@@ -365,23 +369,37 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                     )}
 
                     <div className="grid grid-cols-2 gap-4">
-                        {!metadata.isPlaylist || !isPlaylistView ? (
+                        {/* Quality — YouTube only */}
+                        {isYouTubeUrl(url) && (!metadata.isPlaylist || !isPlaylistView) && (
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">Quality</label>
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">
+                                    Quality
+                                    {metadata.availableQualities && (
+                                        <span className="ml-1 text-primary/70 normal-case font-normal">
+                                            ({metadata.availableQualities.length - 1} available)
+                                        </span>
+                                    )}
+                                </label>
                                 <Select value={quality} onValueChange={(v: any) => setQuality(v)}>
                                     <SelectTrigger className="bg-muted/40 border-border h-11 rounded-xl focus:ring-primary/50 transition-all">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card border-border text-foreground rounded-xl">
-                                        <SelectItem value="best">Best Available</SelectItem>
-                                        <SelectItem value="1080p">1080p Full HD</SelectItem>
-                                        <SelectItem value="720p">720p HD</SelectItem>
-                                        <SelectItem value="480p">480p Medium</SelectItem>
-                                        <SelectItem value="audio">Audio (MP3)</SelectItem>
+                                        {(metadata.availableQualities ?? ['best', '1080p', '720p', '480p', 'audio']).map(q => {
+                                            const label =
+                                                q === 'best'  ? 'Best Available' :
+                                                q === 'audio' ? 'Audio Only (MP3)' :
+                                                `${q}${parseInt(q) >= 1080 ? ' Full HD' : parseInt(q) >= 720 ? ' HD' : ''}`;
+                                            return (
+                                                <SelectItem key={q} value={q}>{label}</SelectItem>
+                                            );
+                                        })}
                                     </SelectContent>
                                 </Select>
                             </div>
-                        ) : (
+                        )}
+                        {/* Playlist Range */}
+                        {metadata.isPlaylist && isPlaylistView && (
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">Playlist Range</label>
                                 <Input 

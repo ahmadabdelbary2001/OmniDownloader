@@ -8,7 +8,7 @@ export interface SearchResult {
 
 export type DownloadService = 'ytdlp' | 'wget';
 
-export type VideoQuality = 'best' | '1080p' | '720p' | '480p' | 'audio';
+export type VideoQuality = string; // dynamic: 'best' | '1080p' | '720p' | '480p' | 'audio' | ...
 
 export interface DownloadOptions {
   playlistItems?: string;
@@ -52,6 +52,7 @@ export interface MediaMetadata {
   isPlaylist: boolean;
   entries?: PlaylistEntry[];
   formats?: any[];
+  availableQualities?: string[]; // parsed from formats, e.g. ['2160p','1080p','720p','480p','audio']
   requestedVideoId?: string;
   requestedIndex?: number;
 }
