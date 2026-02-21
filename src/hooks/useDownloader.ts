@@ -312,6 +312,18 @@ export function useDownloader() {
           "--no-overwrites"
         ];
         if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
+        
+        // Subtitle support
+        if (options.subtitleLang && options.subtitleLang !== 'none' && q !== 'audio') {
+          // Always include both write-subs and write-auto-subs to ensure the selected language is caught 
+          // regardless of whether it's manual or auto-generated.
+          args.push("--write-subs", "--write-auto-subs", "--sub-langs", options.subtitleLang, "--convert-subs", "srt");
+          
+          if (options.embedSubtitles) {
+            args.push("--embed-subs");
+          }
+        }
+
         args.push(targetUrl);
       } else {
         args = [
@@ -637,6 +649,50 @@ export function useDownloader() {
         isPlaylist: isPlaylist,
         formats: json.formats || [],
         availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
+        availableSubtitles: (() => {
+          const subs: any[] = [];
+          const manualSubs = json.subtitles || {};
+          const autoSubs = json.automatic_captions || {};
+          
+          // 1. Process Manual Subtitles
+          for (const [lang, formats] of Object.entries(manualSubs)) {
+            const typedFormats = formats as any[];
+            const name = typedFormats.find(f => f.name)?.name || lang;
+            subs.push({ lang, name: `${name}`, type: 'manual' });
+          }
+
+          // 2. Process Automatic Captions
+          // We look for the "Original" auto-generated one (often matching the video language)
+          // and treat others as translated.
+          const videoLang = json.language || 'en'; // Fallback to 'en'
+          
+          for (const [lang, formats] of Object.entries(autoSubs)) {
+            const typedFormats = formats as any[];
+            const name = typedFormats.find(f => f.name)?.name || lang;
+            
+            // Check if this sub lang is already in subs (avoid duplicates)
+            if (subs.find(s => s.lang === lang)) continue;
+
+            const isOriginal = lang.toLowerCase() === videoLang.toLowerCase() || 
+                             lang.split('-')[0] === videoLang.split('-')[0];
+            
+            subs.push({ 
+              lang, 
+              name: `${name}${isOriginal ? ' (Original Auto)' : ' (Auto Translate)'}`, 
+              type: isOriginal ? 'auto' : 'translated',
+              isOriginal
+            });
+          }
+
+          // Sort: Manual first, then Original Auto, then Translated
+          return subs.length > 0 ? subs.sort((a, b) => {
+            const order = { 'manual': 0, 'auto': 1, 'translated': 2 };
+            if (order[a.type as keyof typeof order] !== order[b.type as keyof typeof order]) {
+              return order[a.type as keyof typeof order] - order[b.type as keyof typeof order];
+            }
+            return a.name.localeCompare(b.name);
+          }) : undefined;
+        })(),
         entries: json.entries ? json.entries.map((e: any, i: number) => ({
           id: e.id || String(i),
           title: e.title || `Video ${i + 1}`,

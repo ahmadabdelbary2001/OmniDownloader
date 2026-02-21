@@ -35,6 +35,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
   const [isPlaylistView, setIsPlaylistView] = useState(false);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [subtitleLang, setSubtitleLang] = useState<string>("none");
+  const [embedSubtitles, setEmbedSubtitles] = useState(true);
+  const [showAllTranslations, setShowAllTranslations] = useState(false);
 
   // Helper to convert selection Set to yt-dlp string (e.g. 1,2,5-10)
   const getRangeString = (indices: Set<number>) => {
@@ -126,7 +129,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                 options: {
                     quality,
                     downloadPath: customPath || defaultPath,
-                    playlistItems: `${entry.index}`
+                    playlistItems: `${entry.index}`,
+                    subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
+                    embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined
                 },
                 title: entry.title,
                 thumbnail: entry.thumbnail
@@ -142,7 +147,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
             downloadPath: customPath || defaultPath,
             wgetReferer: wgetReferer || undefined,
             wgetFilename: wgetFilename || undefined,
-            playlistItems: isPlaylistView ? (playlistItems || undefined) : undefined
+            playlistItems: isPlaylistView ? (playlistItems || undefined) : undefined,
+            subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
+            embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined
         };
         const title = metadata?.title || wgetFilename || url.split('/').pop() || "Download Task";
         onAdd(url, typeInfo.service, options, title, metadata?.thumbnail);
@@ -156,6 +163,8 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
     setSelectedIndices(new Set());
     setPlaylistItems("");
     setIsPlaylistView(false);
+    setSubtitleLang("none");
+    setShowAllTranslations(false);
   };
 
   const handlePickFolder = async () => {
@@ -411,6 +420,77 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                             </div>
                         )}
                     </div>
+
+                    {/* Subtitles Area — Only for video downloads */}
+                    {metadata?.availableSubtitles && metadata.availableSubtitles.length > 0 && quality !== 'audio' && (
+                      <div className="space-y-4 animate-in slide-in-from-top-2">
+                        <div className="flex items-center justify-between px-1">
+                          <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Subtitles Selection</label>
+                          <div className="flex items-center gap-2">
+                             <input 
+                                type="checkbox" 
+                                id="show-translations"
+                                className="w-3 h-3 rounded border-border text-primary focus:ring-primary/50"
+                                checked={showAllTranslations}
+                                onChange={(e) => setShowAllTranslations(e.target.checked)}
+                              />
+                             <label htmlFor="show-translations" className="text-[9px] font-bold uppercase text-muted-foreground cursor-pointer">Show All Translations</label>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Select value={subtitleLang} onValueChange={setSubtitleLang}>
+                              <SelectTrigger className="bg-muted/40 border-border h-11 rounded-xl focus:ring-primary/50 transition-all font-bold">
+                                <SelectValue placeholder="Select Subtitle" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-card border-border text-foreground rounded-xl max-h-[300px]">
+                                <SelectItem value="none">❌ No Subtitles</SelectItem>
+                                
+                                {(() => {
+                                  const manual = metadata.availableSubtitles.filter(s => s.type === 'manual');
+                                  const auto = metadata.availableSubtitles.filter(s => s.type === 'auto');
+                                  const translated = metadata.availableSubtitles.filter(s => s.type === 'translated');
+                                  
+                                  const items = [];
+                                  
+                                  if (manual.length > 0) {
+                                    items.push(<div key="manual-label" className="px-2 py-1 text-[9px] font-black text-primary/50 uppercase tracking-widest bg-primary/5 rounded mt-1 mb-1">Official / Manual</div>);
+                                    manual.forEach(s => items.push(<SelectItem key={s.lang} value={s.lang}>💠 {s.name}</SelectItem>));
+                                  }
+
+                                  if (auto.length > 0) {
+                                    items.push(<div key="auto-label" className="px-2 py-1 text-[9px] font-black text-amber-500/50 uppercase tracking-widest bg-amber-500/5 rounded mt-2 mb-1">Auto-generated (Original)</div>);
+                                    auto.forEach(s => items.push(<SelectItem key={s.lang} value={s.lang}>🎙️ {s.name}</SelectItem>));
+                                  }
+
+                                  if (translated.length > 0 && showAllTranslations) {
+                                    items.push(<div key="trans-label" className="px-2 py-1 text-[9px] font-black text-muted-foreground/50 uppercase tracking-widest bg-muted/5 rounded mt-2 mb-1">Auto Translate</div>);
+                                    translated.forEach(s => items.push(<SelectItem key={s.lang} value={s.lang}>🌍 {s.name}</SelectItem>));
+                                  }
+
+                                  return items;
+                                })()}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {subtitleLang !== 'none' && (
+                            <div className="flex items-center h-11 px-4 bg-muted/40 border border-border rounded-xl">
+                              <label className="flex items-center gap-3 cursor-pointer w-full">
+                                <input 
+                                  type="checkbox" 
+                                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary/50"
+                                  checked={embedSubtitles}
+                                  onChange={(e) => setEmbedSubtitles(e.target.checked)}
+                                />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Embed into Video</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
               )}
             </div>

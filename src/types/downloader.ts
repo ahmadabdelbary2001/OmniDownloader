@@ -16,6 +16,8 @@ export interface DownloadOptions {
   wgetReferer?: string;
   quality?: VideoQuality;
   downloadPath?: string;
+  subtitleLang?: string;
+  embedSubtitles?: boolean;
 }
 
 export type TaskStatus = 'analyzing' | 'waiting' | 'downloading' | 'paused' | 'completed' | 'failed';
@@ -45,6 +47,13 @@ export interface PlaylistEntry {
   index: number;
 }
 
+export interface SubtitleTrack {
+  lang: string;
+  name: string;
+  type: 'manual' | 'auto' | 'translated';
+  isOriginal?: boolean;
+}
+
 export interface MediaMetadata {
   id?: string;
   title: string;
@@ -53,6 +62,8 @@ export interface MediaMetadata {
   entries?: PlaylistEntry[];
   formats?: any[];
   availableQualities?: string[]; // parsed from formats, e.g. ['2160p','1080p','720p','480p','audio']
+  availableSubtitles?: SubtitleTrack[];
   requestedVideoId?: string;
   requestedIndex?: number;
 }
+
