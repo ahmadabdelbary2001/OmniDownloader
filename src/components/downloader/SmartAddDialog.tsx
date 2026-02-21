@@ -394,15 +394,23 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card border-border text-foreground rounded-xl">
-                                        {(metadata.availableQualities ?? ['best', '1080p', '720p', '480p', 'audio']).map(q => {
-                                            const label =
-                                                q === 'best'  ? 'Best Available' :
-                                                q === 'audio' ? 'Audio Only (MP3)' :
-                                                `${q}${parseInt(q) >= 1080 ? ' Full HD' : parseInt(q) >= 720 ? ' HD' : ''}`;
-                                            return (
-                                                <SelectItem key={q} value={q}>{label}</SelectItem>
-                                            );
-                                        })}
+                                        {metadata.availableQualities && metadata.availableQualities.length > 0 ? (
+                                            metadata.availableQualities.map((q) => (
+                                                <SelectItem key={q.value} value={q.value}>
+                                                    {q.label}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            ['best', '1080p', '720p', '480p', 'audio'].map((q) => {
+                                                const label =
+                                                    q === 'best' ? '🚀 Best Available' :
+                                                    q === 'audio' ? '🎵 Audio Only (MP3)' :
+                                                    `${q}${parseInt(q) >= 1080 ? ' Full HD' : parseInt(q) >= 720 ? ' HD' : ''}`;
+                                                return (
+                                                    <SelectItem key={q} value={q}>{label}</SelectItem>
+                                                );
+                                            })
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>

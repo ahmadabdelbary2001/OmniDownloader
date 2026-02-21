@@ -596,10 +596,19 @@ export function useDownloader() {
       
       const json = JSON.parse(stdout);
       
+      const formatBytes = (bytes?: number) => {
+        if (!bytes) return '';
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      };
+
       const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
       
       // For single YouTube videos: make a second call without --flat-playlist to get full format list
-      let availableQualities: string[] = [];
+      let availableQualities: any[] = [];
       const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
 
       if (!isPlaylist && isYouTube) {
@@ -621,20 +630,53 @@ export function useDownloader() {
           if (fmtStdout) {
             const fmtJson = JSON.parse(fmtStdout);
             const formats: any[] = fmtJson.formats || [];
+            
+            // Find best audio-only format for size estimation
+            const audioFormats = formats.filter(f => f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'));
+            const bestAudio = audioFormats.sort((a, b) => (b.filesize || b.filesize_approx || 0) - (a.filesize || a.filesize_approx || 0))[0];
+            const audioSize = bestAudio ? (bestAudio.filesize || bestAudio.filesize_approx || 0) : 0;
+
             // Extract unique heights from video-only or combined streams
-            const heights = new Set<number>();
-            let hasAudio = false;
+            const heightMap = new Map<number, number>(); // height -> best filesize
             for (const f of formats) {
-              if (f.height && f.height > 0) heights.add(f.height);
-              if (f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none')) hasAudio = true;
+              if (f.height && f.height > 0) {
+                const currentSize = f.filesize || f.filesize_approx || 0;
+                const existing = heightMap.get(f.height) || 0;
+                if (currentSize > existing) {
+                  heightMap.set(f.height, currentSize);
+                }
+              }
             }
+            
             // Sort heights descending
-            const sortedHeights = Array.from(heights).filter(h => h >= 144).sort((a, b) => b - a);
-            availableQualities = sortedHeights.map(h => `${h}p`);
-            if (hasAudio) availableQualities.push('audio');
+            const sortedHeights = Array.from(heightMap.keys()).filter(h => h >= 144).sort((a, b) => b - a);
+            
+            availableQualities = sortedHeights.map(h => {
+              const videoSize = heightMap.get(h) || 0;
+              const totalSize = videoSize + audioSize;
+              const sizeStr = totalSize > 0 ? ` (~${formatBytes(totalSize)})` : '';
+              return {
+                value: `${h}p`,
+                label: `${h}p${sizeStr}`,
+                size: totalSize
+              };
+            });
+
+            if (audioSize > 0) {
+              availableQualities.push({
+                value: 'audio',
+                label: `Audio Only (MP3) (~${formatBytes(audioSize)})`,
+                size: audioSize
+              });
+            }
+
             // Always include 'best' at the top
-            availableQualities = ['best', ...availableQualities];
-            addLog(`✅ Available qualities: ${availableQualities.slice(1).join(', ')}`);
+            availableQualities = [
+              { value: 'best', label: '🚀 Best Available', size: 0 },
+              ...availableQualities
+            ];
+            
+            addLog(`✅ Available qualities: ${availableQualities.length - 1} found.`);
           }
         } catch (e) {
           addLog(`⚠️ Could not fetch available qualities: ${e}`);

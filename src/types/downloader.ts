@@ -54,6 +54,12 @@ export interface SubtitleTrack {
   isOriginal?: boolean;
 }
 
+export interface QualityOption {
+  value: string; // '1080p', '720p', etc.
+  label: string; // '1080p (~150 MB)'
+  size?: number; // bytes
+}
+
 export interface MediaMetadata {
   id?: string;
   title: string;
@@ -61,7 +67,7 @@ export interface MediaMetadata {
   isPlaylist: boolean;
   entries?: PlaylistEntry[];
   formats?: any[];
-  availableQualities?: string[]; // parsed from formats, e.g. ['2160p','1080p','720p','480p','audio']
+  availableQualities?: QualityOption[]; 
   availableSubtitles?: SubtitleTrack[];
   requestedVideoId?: string;
   requestedIndex?: number;

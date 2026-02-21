@@ -182,11 +182,21 @@ export function DirectTab({
                 <SelectValue placeholder="Select quality" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-foreground">
-                <SelectItem value="best">🚀 Best Available</SelectItem>
-                <SelectItem value="1080p">💎 1080p Full HD</SelectItem>
-                <SelectItem value="720p">✨ 720p HD</SelectItem>
-                <SelectItem value="480p">📱 480p SD</SelectItem>
-                <SelectItem value="audio">🎵 Audio Only (MP3)</SelectItem>
+                {metadata?.availableQualities && metadata.availableQualities.length > 0 ? (
+                  metadata.availableQualities.map((q) => (
+                    <SelectItem key={q.value} value={q.value}>
+                      {q.label}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="best">🚀 Best Available</SelectItem>
+                    <SelectItem value="1080p">💎 1080p Full HD</SelectItem>
+                    <SelectItem value="720p">✨ 720p HD</SelectItem>
+                    <SelectItem value="480p">📱 480p SD</SelectItem>
+                    <SelectItem value="audio">🎵 Audio Only (MP3)</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
