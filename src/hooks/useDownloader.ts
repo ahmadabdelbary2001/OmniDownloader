@@ -169,6 +169,7 @@ export function useDownloader() {
   const isWindows = navigator.userAgent.includes('Windows');
 
   const stopDownload = async () => {
+    stopRequestedRef.current = true;
     addLog("🛑 STOP ALL requested - Terminating all active processes...");
     
     // Kill all processes in the map
@@ -177,12 +178,7 @@ export function useDownloader() {
       await stopTaskProcess(id); // Use helper
     }
 
-    // Fallback cleanup
-    
-    // Simplified specific killing as we now have a map
-
     // 2. Fallback: Systematic cleanup (Windows/Linux)
-    // We target common sidecar names and their triples to be sure
     if (isWindows) {
       const targets = [
         "ytdlp-x86_64-pc-windows-msvc.exe",
@@ -190,7 +186,7 @@ export function useDownloader() {
         "wget-x86_64-pc-windows-msvc.exe",
         "wget-x86_64-pc-windows-gnu.exe",
         "ffmpeg.exe",
-        "node.exe" // yt-dlp might be running node for JS challenges
+        "node.exe" 
       ];
       for (const exe of targets) {
         try {
@@ -205,7 +201,12 @@ export function useDownloader() {
       } catch (e) {}
     }
     
-    // Clean up state
+    activeProcessesRef.current.clear();
+    setTasks(prev => prev.map(t => 
+      ['downloading', 'waiting', 'analyzing'].includes(t.status) 
+        ? { ...t, status: 'paused', speed: undefined, eta: undefined } 
+        : t
+    ));
     setIsStopDisabledState(true);
     addLog("✅ Cleanup complete. All processes should have stopped.");
   };
@@ -335,6 +336,7 @@ export function useDownloader() {
       } else {
         args = [
           "-c",
+          "--continue",
           "--progress=dot:giga",
           "-P", downloadDir,
           "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -347,6 +349,16 @@ export function useDownloader() {
       const cmd = Command.sidecar(service, args);
       
       const child = await cmd.spawn();
+      
+      // Immediate check: if stop was requested while we were spawning
+      if (stopRequestedRef.current) {
+        try {
+          await child.kill();
+          addLog("⚡ [HALTED] Process stopped immediately after spawn.");
+        } catch (e) {}
+        return 1;
+      }
+
       if (taskId) activeProcessesRef.current.set(taskId, child);
 
       let currentComponentIdx = 0;
@@ -460,6 +472,8 @@ export function useDownloader() {
 
       // await cmd.spawn(); // This was moved above to get the child process
       const output = await completion;
+      if (taskId) activeProcessesRef.current.delete(taskId);
+      
       lastCode = output.code;
       if (lastCode === 0 || stopRequestedRef.current) break;
       addLog(`⚠️ Client ${client} failed. Retrying next...`);
@@ -581,7 +595,7 @@ export function useDownloader() {
 
   // Background Queue Manager
   useEffect(() => {
-    if (!isQueueActive) return;
+    if (!isQueueActive || stopRequestedRef.current) return;
 
     // Wait if any download is already active
     const isAnyActive = tasks.some(t => t.status === 'downloading');
@@ -1030,6 +1044,34 @@ export function useDownloader() {
     }
   };
 
+  const revealFolder = async (folderPath?: string) => {
+    const targetPath = folderPath || baseDownloadPath;
+    if (!targetPath) {
+      toast.error("Download path not set");
+      return;
+    }
+
+    try {
+      const isExists = await exists(targetPath);
+      if (!isExists) {
+        toast.error("Folder does not exist yet");
+        return;
+      }
+
+      // Detect OS from path format (Windows paths have drive letters like C:\)
+      const isWindows = /^[A-Za-z]:[\\\/]/.test(targetPath);
+      if (isWindows) {
+        await Command.create('explorer', [targetPath]).execute();
+      } else {
+        await Command.create('xdg-open', [targetPath]).execute();
+      }
+      addLog(`📁 Opening folder: ${targetPath}`);
+    } catch (e) {
+      console.error("Failed to open folder:", e);
+      toast.error("Failed to open folder");
+    }
+  };
+
   return {
     logs,
     setLogs,
@@ -1055,6 +1097,7 @@ export function useDownloader() {
     clearTasks,
     getMediaMetadata,
     isQueueActive,
-    reorderTask
+    reorderTask,
+    revealFolder
   };
 }

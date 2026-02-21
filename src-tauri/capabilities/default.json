@@ -11,9 +11,20 @@
     "fs:default",
     "shell:default",
     "shell:allow-kill",
+    "shell:allow-open",
     {
       "identifier": "shell:allow-execute",
       "allow": [
+        {
+          "name": "explorer",
+          "cmd": "explorer",
+          "args": true
+        },
+        {
+          "name": "xdg-open",
+          "cmd": "xdg-open",
+          "args": true
+        },
         {
           "name": "ytdlp",
           "cmd": "ytdlp",
@@ -29,13 +40,7 @@
         {
           "name": "taskkill",
           "cmd": "taskkill",
-          "args": [
-            { "pattern": "/F" },
-            { "pattern": "/T" },
-            { "pattern": "/PID" },
-            { "pattern": "/IM" },
-            { "pattern": ".*" }
-          ]
+          "args": true
         }
       ]
     },
@@ -66,6 +71,46 @@
     },
     {
       "identifier": "fs:allow-write",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-stat",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
       "allow": [
         {
           "path": "$HOME/**"

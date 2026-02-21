@@ -309,11 +309,9 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
                   {task.status === 'waiting' && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_5px_rgba(var(--primary),0.5)]" />}
                 </Button>
               )}
-              {task.status === 'completed' && (
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-primary hover:text-primary" onClick={() => onOpenFolder(task.id)}>
-                  <FolderOpen className="w-3.5 h-3.5" />
-                </Button>
-              )}
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-primary hover:text-primary" onClick={() => onOpenFolder(task.id)}>
+                <FolderOpen className="w-3.5 h-3.5" />
+              </Button>
               <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground/30 hover:text-destructive" onClick={() => onRemove(task.id)}>
                 <X className="w-3.5 h-3.5" />
               </Button>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { 
-  Terminal, Search, Folder, Plus, Pause, Trash2, 
+  Terminal, Search, Folder, FolderOpen, Plus, Pause, Trash2, 
   Clock, CheckCircle2, AlertCircle, Info, LayoutGrid,
   Sun, Moon
 } from 'lucide-react';
@@ -41,7 +41,8 @@ export function Downloader() {
     clearTasks,
     isQueueActive,
     reorderTask,
-    addTasksBulk
+    addTasksBulk,
+    revealFolder
   } = useDownloader();
 
   const { theme, setTheme } = useTheme();
@@ -113,8 +114,8 @@ export function Downloader() {
   const handleOpenFolder = async (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (task) {
-        const path = task.options.downloadPath || baseDownloadPath;
-        toast.info(`Location: ${path}`);
+        const folderPath = task.options.downloadPath || baseDownloadPath;
+        await revealFolder(folderPath);
     }
   };
 
@@ -192,14 +193,26 @@ export function Downloader() {
 
         <div className="flex items-center gap-4">
             <div 
-                onClick={handleSelectDefaultPath}
-                className="flex items-center gap-3 px-4 py-2 bg-muted/50 border border-border rounded-xl cursor-pointer hover:border-primary/50 transition-all group"
+                className="flex items-center gap-1 bg-muted/50 border border-border rounded-xl transition-all group overflow-hidden"
             >
-                <Folder className="w-4 h-4 text-[var(--acc-300)] group-hover:scale-110 transition-transform" />
-                <div className="flex flex-col">
-                    <span className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Storage</span>
-                    <span className="text-[10px] font-bold text-foreground/60 truncate max-w-[150px]">{baseDownloadPath.split(/[\\/]/).pop() || 'Downloads'}</span>
+                <div 
+                    onClick={handleSelectDefaultPath}
+                    className="flex items-center gap-3 px-4 py-2 hover:bg-muted cursor-pointer border-r border-border/50 transition-all"
+                >
+                    <Folder className="w-4 h-4 text-[var(--acc-300)] group-hover:scale-110 transition-transform" />
+                    <div className="flex flex-col">
+                        <span className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Storage</span>
+                        <span className="text-[10px] font-bold text-foreground/60 truncate max-w-[120px]">{baseDownloadPath.split(/[\\/]/).pop() || 'Downloads'}</span>
+                    </div>
                 </div>
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-10 w-10 rounded-none hover:bg-primary/10 hover:text-primary transition-all"
+                    onClick={() => revealFolder()}
+                >
+                    <FolderOpen className="w-4 h-4" />
+                </Button>
             </div>
 
             <div className="flex bg-muted p-1 rounded-xl gap-1">
