@@ -18,6 +18,8 @@ export interface DownloadOptions {
   downloadPath?: string;
   subtitleLang?: string;
   embedSubtitles?: boolean;
+  estimatedVideoSize?: number;
+  estimatedAudioSize?: number;
 }
 
 export type TaskStatus = 'analyzing' | 'waiting' | 'downloading' | 'paused' | 'completed' | 'failed';
@@ -28,6 +30,8 @@ export interface DownloadTask {
   title: string;
   status: TaskStatus;
   progress: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
   speed?: string;
   size?: string;
   downloaded?: string;

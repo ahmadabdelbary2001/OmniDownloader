@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Download, Check, ListChecks, Hash, ArrowRight, Play, Youtube, Folder } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { VideoQuality, MediaMetadata } from '../../types/downloader';
+import { VideoQuality, MediaMetadata, DownloadOptions } from '../../types/downloader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ScrollArea } from '../ui/scroll-area';
 import { VideoPlayer } from './VideoPlayer';
@@ -17,7 +17,7 @@ interface DirectTabProps {
   isPlaylist: boolean;
   metadata: MediaMetadata | null;
   onAnalyze: (url: string) => void;
-  onDownload: (url: string, options: { playlistItems: string, quality: VideoQuality, downloadPath?: string }) => void;
+  onDownload: (url: string, options: DownloadOptions) => void;
   onStop: () => void;
   isStopDisabled: boolean;
   isLoading: boolean;
@@ -324,7 +324,18 @@ export function DirectTab({
             <Folder className="w-5 h-5" />
           </Button>
           <Button 
-            onClick={() => onDownload(url, { playlistItems, quality, downloadPath: customPath || undefined })} 
+            onClick={() => {
+              const selectedQ = metadata?.availableQualities?.find(q => q.value === quality);
+              const audioOnlySize = metadata?.availableQualities?.find(q => q.value === 'audio')?.size || 0;
+              
+              onDownload(url, { 
+                playlistItems, 
+                quality, 
+                downloadPath: customPath || undefined,
+                estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
+                estimatedAudioSize: audioOnlySize || undefined
+              });
+            }} 
             disabled={isLoading || !url} 
             className="h-14 flex-1 gap-2 font-bold shadow-2xl text-base uppercase tracking-widest"
             style={{ background: 'var(--grad-hero)' }}

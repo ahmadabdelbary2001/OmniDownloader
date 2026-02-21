@@ -121,6 +121,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
     
     if (metadata?.isPlaylist && isPlaylistView && selectedIndices.size > 0) {
         // Multi-select Individual mode
+        const selectedQ = metadata.availableQualities?.find(q => q.value === quality);
+        const audioOnlySize = metadata.availableQualities?.find(q => q.value === 'audio')?.size || 0;
+
         const items = metadata.entries
             ?.filter(e => selectedIndices.has(e.index))
             .map(entry => ({
@@ -131,7 +134,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
                     downloadPath: customPath || defaultPath,
                     playlistItems: `${entry.index}`,
                     subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
-                    embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined
+                    embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
+                    estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
+                    estimatedAudioSize: audioOnlySize || undefined
                 },
                 title: entry.title,
                 thumbnail: entry.thumbnail
@@ -142,6 +147,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
         }
     } else {
         // Single Task mode (could be one video OR a whole playlist as one task)
+        const selectedQ = metadata?.availableQualities?.find(q => q.value === quality);
+        const audioOnlySize = metadata?.availableQualities?.find(q => q.value === 'audio')?.size || 0;
+
         const options: DownloadOptions = {
             quality,
             downloadPath: customPath || defaultPath,
@@ -149,7 +157,9 @@ export function SmartAddDialog({ isOpen, onClose, onAnalyze, onAdd, onAddBulk, d
             wgetFilename: wgetFilename || undefined,
             playlistItems: isPlaylistView ? (playlistItems || undefined) : undefined,
             subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
-            embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined
+            embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
+            estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
+            estimatedAudioSize: audioOnlySize || undefined
         };
         const title = metadata?.title || wgetFilename || url.split('/').pop() || "Download Task";
         onAdd(url, typeInfo.service, options, title, metadata?.thumbnail);

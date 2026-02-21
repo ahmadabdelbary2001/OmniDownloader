@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Logo from '../../assets/logo.svg';
 import { Button } from "../ui/button";
-import { cn, parseSizeToBytes } from "../../lib/utils";
+import { cn, parseSizeToBytes, formatBytes } from "../../lib/utils";
 import { Input } from "../ui/input";
 
 interface DownloadTableProps {
@@ -260,8 +260,8 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
               </div>
             </div>
 
-            <div className="col-span-1 text-xs text-muted-foreground font-mono truncate">
-              {task.size || 'Unknown'}
+            <div className="col-span-1 text-[10px] text-muted-foreground font-mono truncate">
+              {task.totalBytes ? formatBytes(task.totalBytes) : (task.size || 'Unknown')}
             </div>
 
             <div className="col-span-2 flex items-center gap-1.5">
@@ -279,7 +279,14 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
 
             <div className="col-span-3 flex flex-col gap-1 pr-4">
               <div className="flex justify-between text-[9px] font-bold text-muted-foreground tracking-tighter">
-                <span>{task.progress.toFixed(1)}%</span>
+                <div className="flex gap-1">
+                   <span className="text-primary">{Math.min(100, task.progress).toFixed(1)}%</span>
+                   {task.totalBytes !== undefined && task.totalBytes > 0 && (
+                     <span className="opacity-60">
+                       ({formatBytes(task.downloadedBytes || 0)} / {formatBytes(task.totalBytes)})
+                     </span>
+                   )}
+                </div>
                 {task.status === 'downloading' && <span>{task.eta} left</span>}
               </div>
               <Progress value={task.progress} className="h-1 bg-muted" />

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
+import { parseSizeToBytes } from '../lib/utils';
 import { path } from '@tauri-apps/api';
 import { mkdir, exists, remove, readDir } from '@tauri-apps/plugin-fs';
 import { toast } from "sonner";
@@ -95,11 +96,18 @@ export function useDownloader() {
     const speedMatch = line.match(/at\s+(\d+\.?\d*[KMGT]iB\/s)/);
     const etaMatch = line.match(/ETA\s+(\d+:\d+)/);
 
+    const sizeStr = sizeMatch ? sizeMatch[1].replace('~', '') : undefined;
+    const percent = percentMatch ? parseFloat(percentMatch[1]) : null;
+    const totalBytes = parseSizeToBytes(sizeStr || '');
+    const downloadedBytes = percent !== null ? (percent / 100) * totalBytes : 0;
+
     return {
-      percent: percentMatch ? parseFloat(percentMatch[1]) : null,
-      size: sizeMatch ? sizeMatch[1].replace('~', '') : undefined,
+      percent,
+      size: sizeStr,
       speed: speedMatch ? speedMatch[1] : undefined,
-      eta: etaMatch ? etaMatch[1] : undefined
+      eta: etaMatch ? etaMatch[1] : undefined,
+      totalBytes,
+      downloadedBytes
     };
   };
 
@@ -298,7 +306,6 @@ export function useDownloader() {
           "--js-runtimes", "node",
           "--ffmpeg-location", ffmpegPath,
           "--merge-output-format", "mp4",
-          "--prefer-ffmpeg",
           "--extractor-args", `youtube:player-client=${client}`,
           "--newline",
           "--progress",
@@ -342,16 +349,88 @@ export function useDownloader() {
       const child = await cmd.spawn();
       if (taskId) activeProcessesRef.current.set(taskId, child);
 
+      let currentComponentIdx = 0;
+      let completedBytes = 0;
+      let lastFilename = '';
+      let detectedPhases = 0;
+      let lastPhaseActualSize = 0;
+      const totalEstimated = (options.estimatedVideoSize || 0) + (options.estimatedAudioSize || 0);
+
       cmd.stdout.on('data', (line) => {
         if (stopRequestedRef.current) return;
         const cleanLine = line.trim();
+
+        // 1. Detect expected number of formats (to refine phase detection)
+        const formatsMatch = cleanLine.match(/Downloading (\d+) format\(s\)/);
+        if (formatsMatch) {
+          detectedPhases = parseInt(formatsMatch[1]);
+        }
+
+        // 2. Detect new component download
+        if (cleanLine.includes('Destination: ')) {
+          const filename = cleanLine.split('Destination: ').pop()?.trim() || '';
+          
+          if (filename && filename !== lastFilename) {
+            // Update completedBytes with the ACTUAL size of the phase that just finished (if available)
+            completedBytes += lastPhaseActualSize;
+            
+            // If we don't have lastPhaseActualSize yet (first phase), but we had an estimate,
+            // we don't do anything because completedBytes starts at 0.
+            
+            currentComponentIdx++;
+            lastFilename = filename;
+            lastPhaseActualSize = 0; // Reset for the new phase
+            addLog(`📦 Phase ${currentComponentIdx}: ${filename}`);
+          }
+        }
+
         if (cleanLine.includes('[download]')) {
           const p = parseProgress(cleanLine);
           if (p.percent !== null) {
-            setProgress(p.percent);
+            lastPhaseActualSize = p.totalBytes;
+            
+            let globalPercent = p.percent;
+            let totalDownloaded = p.downloadedBytes;
+            let totalSize = totalEstimated;
+
+            if (totalEstimated > 0) {
+              totalDownloaded = completedBytes + p.downloadedBytes;
+              
+              // Dynamic total size calculation:
+              // Current actual total = already completed bytes + current phase's actual total + remaining estimated phases
+              // Since we only really handle 2 phases (video+audio), this is simpler:
+              totalSize = completedBytes + p.totalBytes;
+              if (currentComponentIdx === 1 && detectedPhases > 1) {
+                  // Add estimated audio if we are still on video
+                  totalSize += (options.estimatedAudioSize || 0);
+              }
+
+              // Guard against totalSize being 0
+              const finalTotal = Math.max(totalEstimated, totalSize);
+              globalPercent = (totalDownloaded / finalTotal) * 100;
+              
+              // Determine current expected components
+              const targetPhases = detectedPhases || (options.estimatedAudioSize ? 2 : 1);
+              
+              // Only cap if we are NOT in the final expected phase
+              if (globalPercent > 99.9 && currentComponentIdx < targetPhases) {
+                 globalPercent = 99.9;
+              }
+              
+              totalSize = finalTotal;
+            } else {
+              totalSize = p.totalBytes;
+            }
+
+            // Absolute safety: never show > 100% in UI during active download
+            globalPercent = Math.min(99.9, globalPercent);
+
+            setProgress(globalPercent);
             if (taskId) {
               updateTask(taskId, { 
-                progress: p.percent, 
+                progress: globalPercent, 
+                downloadedBytes: totalDownloaded,
+                totalBytes: totalSize,
                 speed: p.speed, 
                 size: p.size,
                 eta: p.eta 
@@ -400,6 +479,7 @@ export function useDownloader() {
         title,
         status: 'waiting',
         progress: 0,
+        totalBytes: (options.estimatedVideoSize || 0) + (options.estimatedAudioSize || 0),
         service,
         options,
         createdAt: Date.now(),
@@ -427,6 +507,7 @@ export function useDownloader() {
           title: item.title,
           status: 'waiting',
           progress: 0,
+          totalBytes: (item.options.estimatedVideoSize || 0) + (item.options.estimatedAudioSize || 0),
           service: item.service,
           options: item.options,
           createdAt: Date.now(),
