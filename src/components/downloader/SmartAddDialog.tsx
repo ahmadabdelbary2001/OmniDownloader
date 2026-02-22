@@ -7,7 +7,7 @@ import { VideoQuality, MediaMetadata, DownloadOptions } from "../../types/downlo
 import { Folder, Loader2, Link as LinkIcon, CheckCircle2, List, PlayCircle, Check, X } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "../../lib/utils";
-import { analyzeLinkType } from "../../utils/linkAnalyzer";
+import { analyzeLinkType } from "../../lib/linkAnalyzer";
 
 interface SmartAddDialogProps {
   isOpen: boolean;

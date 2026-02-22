@@ -1,607 +1,80 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { Command } from '@tauri-apps/plugin-shell';
-import { parseSizeToBytes } from '../lib/utils';
+import { useState, useEffect } from 'react';
 import { path } from '@tauri-apps/api';
-import { mkdir, exists, remove, readDir } from '@tauri-apps/plugin-fs';
+import { exists, remove, readDir } from '@tauri-apps/plugin-fs';
+import { Command } from '@tauri-apps/plugin-shell';
 import { toast } from "sonner";
-import { SearchResult, DownloadService, DownloadOptions, MediaMetadata, DownloadTask } from '../types/downloader';
+import { DownloadTask } from '../types/downloader';
+import { useLogs } from './useLogs';
+import { useTasks } from './useTasks';
+import { useDownloadPath } from './useDownloadPath';
+import { useSearch } from './useSearch';
+import { useMetadata } from './useMetadata';
+import { useProcessManager } from './useProcessManager';
+import { useDownloadEngine } from './useDownloadEngine';
+import { useLinkAnalyzer } from './useLinkAnalyzer';
 
 export function useDownloader() {
-  const [logs, setLogs] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [tasks, setTasks] = useState<DownloadTask[]>(() => {
-    const saved = localStorage.getItem('omni_tasks');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Reset volatile statuses that don't survive restart
-        return parsed.map((t: DownloadTask) => {
-          if (t.status === 'downloading' || t.status === 'analyzing') {
-            return { ...t, status: 'paused' };
-          }
-          return t;
-        }).sort((a: any, b: any) => (a.queueOrder || 0) - (b.queueOrder || 0));
-      } catch (e) {
-        console.error("Failed to parse saved tasks", e);
-        return [];
-      }
-    }
-    return [];
+  
+  const { logs, setLogs, addLog, endRef } = useLogs();
+  
+  const { 
+    tasks, 
+    setTasks, 
+    updateTask, 
+    reorderTask, 
+    removeTask: removeTaskState, 
+    clearTasks: clearTasksState,
+    addTask,
+    addTasksBulk
+  } = useTasks();
+
+  const { baseDownloadPath, updateBaseDownloadPath } = useDownloadPath({ addLog });
+
+  const { 
+    activeProcessesRef, 
+    stopRequestedRef, 
+    isStopDisabledState, 
+    setIsStopDisabledState, 
+    stopDownload, 
+  } = useProcessManager({ addLog, setTasks });
+
+  const { isSearching, searchResults, handleSearch } = useSearch({ addLog, stopRequestedRef });
+
+  const { getMediaMetadata } = useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProcessesRef });
+
+  const { startDownload, startBatchDownload } = useDownloadEngine({
+    addLog,
+    updateTask,
+    addTask,
+    setProgress,
+    setIsLoading,
+    stopRequestedRef,
+    activeProcessesRef,
+    setIsStopDisabledState,
+    baseDownloadPath
   });
 
-  useEffect(() => {
-    localStorage.setItem('omni_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+  const { analyzeLink } = useLinkAnalyzer({
+    addLog,
+    setIsLoading,
+    getMediaMetadata,
+    stopRequestedRef,
+    activeProcessesRef
+  });
 
   const isQueueActive = true;
-
-  const activeProcessesRef = useRef<Map<string, any>>(new Map());
-  const stopRequestedRef = useRef<boolean>(false);
-
-  const [isStopDisabledState, setIsStopDisabledState] = useState(true);
   const isAnyDownloading = tasks.some(t => t.status === 'downloading');
-  const isStopDisabled = !isAnyDownloading && isStopDisabledState; // We'll keep a state for other busy things
-  
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
-
-  const addLog = useCallback((msg: string) => {
-    setLogs(prev => [...prev, msg].slice(-1000));
-  }, []);
-
-  const [baseDownloadPath, setBaseDownloadPath] = useState<string>(localStorage.getItem('omni_base_path') || '');
-
-  // Initialize and ensure default directory exists
-  useEffect(() => {
-    const initPath = async () => {
-      try {
-        let current = localStorage.getItem('omni_base_path');
-        if (!current) {
-          const downloads = await path.downloadDir();
-          current = await path.join(downloads, 'OmniDownloader');
-          localStorage.setItem('omni_base_path', current);
-          setBaseDownloadPath(current);
-        }
-        
-        // Ensure directory exists
-        const isExists = await exists(current);
-        if (!isExists) {
-          await mkdir(current, { recursive: true });
-          addLog(`📁 Created default download folder: ${current}`);
-        }
-      } catch (e) {
-        console.error("Failed to init download path:", e);
-      }
-    };
-    initPath();
-  }, []);
-
-  const updateBaseDownloadPath = (newPath: string) => {
-    setBaseDownloadPath(newPath);
-    localStorage.setItem('omni_base_path', newPath);
-  };
-
-  const parseProgress = (line: string) => {
-    // yt-dlp patterns: 
-    // [download]  12.3% of 10.00MiB at  2.41MiB/s ETA 00:04
-    // [download]  12.3% of ~10.00MiB at  2.41MiB/s ETA 00:04
-    const percentMatch = line.match(/(\d+\.?\d*)%/);
-    const sizeMatch = line.match(/of\s+(~?\d+\.?\d*[KMGT]iB)/);
-    const speedMatch = line.match(/at\s+(\d+\.?\d*[KMGT]iB\/s)/);
-    const etaMatch = line.match(/ETA\s+(\d+:\d+)/);
-
-    const sizeStr = sizeMatch ? sizeMatch[1].replace('~', '') : undefined;
-    const percent = percentMatch ? parseFloat(percentMatch[1]) : null;
-    const totalBytes = parseSizeToBytes(sizeStr || '');
-    const downloadedBytes = percent !== null ? (percent / 100) * totalBytes : 0;
-
-    return {
-      percent,
-      size: sizeStr,
-      speed: speedMatch ? speedMatch[1] : undefined,
-      eta: etaMatch ? etaMatch[1] : undefined,
-      totalBytes,
-      downloadedBytes
-    };
-  };
-
-  const updateTask = (id: string, updates: Partial<DownloadTask>) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-  };
-
-  const handleSearch = async (query: string) => {
-    if (!query) return;
-    setIsSearching(true);
-    setSearchResults([]);
-    addLog(`🔎 Searching for: ${query}`);
-    
-    try {
-      const cmd = Command.sidecar("ytdlp", [
-        "--js-runtimes", "node",
-        `ytsearch10:${query}`,
-        "--dump-json",
-        "--no-download"
-      ]);
-      
-      cmd.stdout.on('data', (data: string) => {
-        if (stopRequestedRef.current) return;
-        const lines = data.split('\n').filter(line => line.trim());
-        for (const line of lines) {
-          try {
-            const json = JSON.parse(line);
-            const dur = json.duration;
-            const formattedDur = dur ? `${Math.floor(dur / 60)}:${(dur % 60).toString().padStart(2, '0')}` : 'N/A';
-            
-            setSearchResults(prev => {
-              if (prev.find(item => item.id === json.id)) return prev;
-              return [...prev, {
-                id: json.id,
-                title: json.title,
-                thumbnail: json.thumbnail,
-                duration: formattedDur,
-                webpage_url: json.webpage_url
-              }];
-            });
-          } catch (e) {
-            console.error("JSON parse error:", e);
-          }
-        }
-      });
-
-      await cmd.spawn();
-      addLog("✅ Search process started.");
-    } catch (error: any) {
-      toast.error("Search failed");
-      addLog(`❌ Search error: ${error.message || error}`);
-    } finally {
-      setIsSearching(false);
-      setIsLoading(false); // Ensure isLoading is reset
-      setIsStopDisabledState(true); // Ensure stop button is disabled
-    }
-  };
-
-  const isWindows = navigator.userAgent.includes('Windows');
-
-  const stopDownload = async () => {
-    stopRequestedRef.current = true;
-    addLog("🛑 STOP ALL requested - Terminating all active processes...");
-    
-    // Kill all processes in the map
-    const processIds = Array.from(activeProcessesRef.current.keys());
-    for (const id of processIds) {
-      await stopTaskProcess(id); // Use helper
-    }
-
-    // 2. Fallback: Systematic cleanup (Windows/Linux)
-    if (isWindows) {
-      const targets = [
-        "ytdlp-x86_64-pc-windows-msvc.exe",
-        "ytdlp-x86_64-pc-windows-gnu.exe",
-        "wget-x86_64-pc-windows-msvc.exe",
-        "wget-x86_64-pc-windows-gnu.exe",
-        "ffmpeg.exe",
-        "node.exe" 
-      ];
-      for (const exe of targets) {
-        try {
-          await Command.create("taskkill", ["/F", "/IM", exe, "/T"]).execute();
-        } catch (e) {}
-      }
-    } else {
-      try {
-        await Command.create("pkill", ["-9", "-f", "ytdlp"]).execute();
-        await Command.create("pkill", ["-9", "-f", "wget"]).execute();
-        await Command.create("pkill", ["-9", "-f", "ffmpeg"]).execute();
-      } catch (e) {}
-    }
-    
-    activeProcessesRef.current.clear();
-    setTasks(prev => prev.map(t => 
-      ['downloading', 'waiting', 'analyzing'].includes(t.status) 
-        ? { ...t, status: 'paused', speed: undefined, eta: undefined } 
-        : t
-    ));
-    setIsStopDisabledState(true);
-    addLog("✅ Cleanup complete. All processes should have stopped.");
-  };
-
-  const stopTaskProcess = async (taskId: string) => {
-    const child = activeProcessesRef.current.get(taskId);
-    if (child) {
-      try {
-        await child.kill();
-        activeProcessesRef.current.delete(taskId);
-        addLog(`⚡ Terminated task process: ${taskId}`);
-      } catch (e) {
-        addLog(`⚠️ Failed to kill task ${taskId}: ${e}`);
-      }
-    }
-  };
-
-  const runSingleDownload = async (
-    targetUrl: string, 
-    service: DownloadService, 
-    options: DownloadOptions = {},
-    taskId?: string,
-    label?: string
-  ): Promise<number | null> => {
-    const downloadDir = options.downloadPath || baseDownloadPath || (await path.downloadDir());
-    
-    if (taskId) {
-      updateTask(taskId, { status: 'downloading' });
-    }
-    
-    // Ensure the specific download directory exists
-    try {
-      if (!(await exists(downloadDir))) {
-        await mkdir(downloadDir, { recursive: true });
-        addLog(`📁 Created directory: ${downloadDir}`);
-      }
-    } catch (e) {}
-
-    const smartLabel = label || (targetUrl.includes('t.me/') ? 'Telegram Link' : 'Direct Link');
-    const clients = service === 'ytdlp' ? ['web_embedded,mweb', 'android,web', 'ios'] : ['default'];
-    let lastCode: number | null = 1;
-
-    for (const client of clients) {
-      if (stopRequestedRef.current) break;
-      setProgress(0);
-      addLog(`🚀 [TRYING] ${client} for ${smartLabel}`);
-
-      let args: string[] = [];
-      if (service === 'ytdlp') {
-        // Windows hardcoded path fallback vs Linux path
-        // In dev, resourceDir might not point where we think for sidecars, but let's try to be smart.
-        // For now, we will use the hardcoded path for Windows (as per user request "make it work") but we can improve it.
-        // For Linux, we expect ffmpeg in the sidecar bin folder or system.
-        
-        let ffmpegPath = "ffmpeg"; // Default to system/path ffmpeg for Linux
-        if (isWindows) {
-           ffmpegPath = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
-        } else {
-           // For Linux, we will try to resolve it relative to the resource directory if possible,
-           // or just rely on the one we downloaded to `src-tauri/bin`.
-           // In Dev mode, `src-tauri/bin` is not process.cwd().
-           // But if we downloaded it there, we can look for it.
-           // However, let's assume it's in the PATH or we construct a path.
-           // Since we can't easily get the absolute path of the *source* in dev from the frontend without help,
-           // we'll try to guess or use a sidecar-like resolution.
-           // Actually, simplest is to pass just "ffmpeg" and ensure it's in the path, 
-           // OR use the absolute path we know: `/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu`
-           // But that is hardcoded to this current machine.
-           
-           // Better approach:
-           // If we are in dev, we know the path.
-           // If we are in prod, it should be in resourceDir.
-           // But frontend doesn't know if we are in dev or prod easily without asking Rust.
-           
-           // HACK: For this specific user on this specific machine:
-           ffmpegPath = "/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu";
-        }
-
-        // Build quality format string dynamically from any height value e.g. '2160p','1080p','720p'
-        let qualityArgs: string;
-        const q = options.quality || 'best';
-        if (q === 'audio') {
-          qualityArgs = "bestaudio/best";
-        } else if (q === 'best') {
-          qualityArgs = "bestvideo+bestaudio/best";
-        } else {
-          // Extract numeric height from string like '1080p' -> 1080
-          const heightMatch = q.match(/(\d+)/);
-          if (heightMatch) {
-            const h = parseInt(heightMatch[1]);
-            qualityArgs = `bestvideo[height<=${h}][vcodec!*=av01]+bestaudio/bestvideo[height<=${h}]+bestaudio/best[height<=${h}]/best`;
-          } else {
-            qualityArgs = "bestvideo+bestaudio/best";
-          }
-        }
-
-        args = [
-          "--js-runtimes", "node",
-          "--ffmpeg-location", ffmpegPath,
-          "--merge-output-format", "mp4",
-          "--extractor-args", `youtube:player-client=${client}`,
-          "--newline",
-          "--progress",
-          "--no-colors",
-          "-P", downloadDir,
-          "-f", qualityArgs,
-          "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "--no-check-certificate",
-          "--prefer-free-formats",
-          "--continue",
-          "--no-overwrites"
-        ];
-        if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
-        
-        // Subtitle support
-        if (options.subtitleLang && options.subtitleLang !== 'none' && q !== 'audio') {
-          // Always include both write-subs and write-auto-subs to ensure the selected language is caught 
-          // regardless of whether it's manual or auto-generated.
-          args.push("--write-subs", "--write-auto-subs", "--sub-langs", options.subtitleLang, "--convert-subs", "srt");
-          
-          if (options.embedSubtitles) {
-            args.push("--embed-subs");
-          }
-        }
-
-        args.push(targetUrl);
-      } else {
-        args = [
-          "-c",
-          "--continue",
-          "--progress=dot:giga",
-          "-P", downloadDir,
-          "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ];
-        if (options.wgetReferer) args.push(`--referer=${options.wgetReferer}`);
-        if (options.wgetFilename) args.push("-O", options.wgetFilename);
-        args.push(targetUrl);
-      }
-
-      const cmd = Command.sidecar(service, args);
-      
-      const child = await cmd.spawn();
-      
-      // Immediate check: if stop was requested while we were spawning
-      if (stopRequestedRef.current) {
-        try {
-          await child.kill();
-          addLog("⚡ [HALTED] Process stopped immediately after spawn.");
-        } catch (e) {}
-        return 1;
-      }
-
-      if (taskId) activeProcessesRef.current.set(taskId, child);
-
-      let currentComponentIdx = 0;
-      let completedBytes = 0;
-      let lastFilename = '';
-      let detectedPhases = 0;
-      let lastPhaseActualSize = 0;
-      const totalEstimated = (options.estimatedVideoSize || 0) + (options.estimatedAudioSize || 0);
-
-      cmd.stdout.on('data', (line) => {
-        if (stopRequestedRef.current) return;
-        const cleanLine = line.trim();
-
-        // 1. Detect expected number of formats (to refine phase detection)
-        const formatsMatch = cleanLine.match(/Downloading (\d+) format\(s\)/);
-        if (formatsMatch) {
-          detectedPhases = parseInt(formatsMatch[1]);
-        }
-
-        // 2. Detect new component download
-        if (cleanLine.includes('Destination: ')) {
-          const filename = cleanLine.split('Destination: ').pop()?.trim() || '';
-          
-          if (filename && filename !== lastFilename) {
-            // Update completedBytes with the ACTUAL size of the phase that just finished (if available)
-            completedBytes += lastPhaseActualSize;
-            
-            // If we don't have lastPhaseActualSize yet (first phase), but we had an estimate,
-            // we don't do anything because completedBytes starts at 0.
-            
-            currentComponentIdx++;
-            lastFilename = filename;
-            lastPhaseActualSize = 0; // Reset for the new phase
-            addLog(`📦 Phase ${currentComponentIdx}: ${filename}`);
-          }
-        }
-
-        if (cleanLine.includes('[download]')) {
-          const p = parseProgress(cleanLine);
-          if (p.percent !== null) {
-            lastPhaseActualSize = p.totalBytes;
-            
-            let globalPercent = p.percent;
-            let totalDownloaded = p.downloadedBytes;
-            let totalSize = totalEstimated;
-
-            if (totalEstimated > 0) {
-              totalDownloaded = completedBytes + p.downloadedBytes;
-              
-              // Dynamic total size calculation:
-              // Current actual total = already completed bytes + current phase's actual total + remaining estimated phases
-              // Since we only really handle 2 phases (video+audio), this is simpler:
-              totalSize = completedBytes + p.totalBytes;
-              if (currentComponentIdx === 1 && detectedPhases > 1) {
-                  // Add estimated audio if we are still on video
-                  totalSize += (options.estimatedAudioSize || 0);
-              }
-
-              // Guard against totalSize being 0
-              const finalTotal = Math.max(totalEstimated, totalSize);
-              globalPercent = (totalDownloaded / finalTotal) * 100;
-              
-              // Determine current expected components
-              const targetPhases = detectedPhases || (options.estimatedAudioSize ? 2 : 1);
-              
-              // Only cap if we are NOT in the final expected phase
-              if (globalPercent > 99.9 && currentComponentIdx < targetPhases) {
-                 globalPercent = 99.9;
-              }
-              
-              totalSize = finalTotal;
-            } else {
-              totalSize = p.totalBytes;
-            }
-
-            // Absolute safety: never show > 100% in UI during active download
-            globalPercent = Math.min(99.9, globalPercent);
-
-            setProgress(globalPercent);
-            if (taskId) {
-              updateTask(taskId, { 
-                progress: globalPercent, 
-                downloadedBytes: totalDownloaded,
-                totalBytes: totalSize,
-                speed: p.speed, 
-                size: p.size,
-                eta: p.eta 
-              });
-            }
-          }
-          setLogs(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.startsWith('[download]') && cleanLine.startsWith('[download]')) {
-              return [...prev.slice(0, -1), cleanLine];
-            }
-            return [...prev, cleanLine].slice(-1000);
-          });
-        } else {
-          addLog(cleanLine);
-        }
-      });
-
-      cmd.stderr.on('data', (line) => {
-        if (stopRequestedRef.current) return;
-        addLog(`⚠️ ERR: ${line.trim()}`);
-      });
-
-      const completion = new Promise<{ code: number | null }>((resolve) => {
-        cmd.on('close', (data) => resolve(data));
-      });
-
-      // await cmd.spawn(); // This was moved above to get the child process
-      const output = await completion;
-      if (taskId) activeProcessesRef.current.delete(taskId);
-      
-      lastCode = output.code;
-      if (lastCode === 0 || stopRequestedRef.current) break;
-      addLog(`⚠️ Client ${client} failed. Retrying next...`);
-    }
-
-    return lastCode;
-  };
-
-  const addTask = async (url: string, service: DownloadService, options: DownloadOptions, title: string, thumbnail?: string): Promise<string> => {
-    const id = Math.random().toString(36).substring(2, 11);
-    
-    setTasks(prev => {
-      const maxOrder = prev.length > 0 ? Math.max(...prev.map(t => t.queueOrder || 0)) : 0;
-      const newTask: DownloadTask = {
-        id,
-        url,
-        title,
-        status: 'waiting',
-        progress: 0,
-        totalBytes: (options.estimatedVideoSize || 0) + (options.estimatedAudioSize || 0),
-        service,
-        options,
-        createdAt: Date.now(),
-        thumbnail,
-        queueOrder: maxOrder + 1
-      };
-      return [...prev, newTask].sort((a, b) => (a.queueOrder || 0) - (b.queueOrder || 0));
-    });
-    
-    return id;
-  };
-
-  const addTasksBulk = async (items: { url: string, service: DownloadService, options: DownloadOptions, title: string, thumbnail?: string }[]): Promise<string[]> => {
-    const ids: string[] = [];
-    
-    setTasks(prev => {
-      let currentMaxOrder = prev.length > 0 ? Math.max(...prev.map(t => t.queueOrder || 0)) : 0;
-      const newTasksToAdd: DownloadTask[] = items.map(item => {
-        const id = Math.random().toString(36).substring(2, 11);
-        ids.push(id);
-        currentMaxOrder++;
-        return {
-          id,
-          url: item.url,
-          title: item.title,
-          status: 'waiting',
-          progress: 0,
-          totalBytes: (item.options.estimatedVideoSize || 0) + (item.options.estimatedAudioSize || 0),
-          service: item.service,
-          options: item.options,
-          createdAt: Date.now(),
-          thumbnail: item.thumbnail,
-          queueOrder: currentMaxOrder
-        };
-      });
-      
-      return [...prev, ...newTasksToAdd].sort((a, b) => (a.queueOrder || 0) - (b.queueOrder || 0));
-    });
-    
-    return ids;
-  };
-
-  const startDownload = async (targetUrl: string, service: DownloadService, options: DownloadOptions = {}, existingTaskId?: string) => {
-    let taskId = existingTaskId;
-    
-    if (!taskId) {
-      taskId = await addTask(targetUrl, service, options, targetUrl);
-    } else {
-      updateTask(taskId, { status: 'waiting' });
-    }
-
-    stopRequestedRef.current = false;
-    setIsStopDisabledState(false);
-    
-    const code = await runSingleDownload(targetUrl, service, options, taskId);
-    
-    setIsStopDisabledState(true);
-
-    if (stopRequestedRef.current) {
-      updateTask(taskId, { status: 'paused' });
-      addLog("🛑 Download was manually stopped.");
-      return;
-    }
-
-    if (code === 0) {
-      setProgress(100);
-      updateTask(taskId, { status: 'completed', progress: 100, speed: undefined, eta: undefined });
-      toast.success("Download Finished!");
-      addLog("🎉 Process completed successfully!");
-    } else {
-      updateTask(taskId, { status: 'failed' });
-      toast.error("Download Failed");
-      addLog(`❌ Process failed with code: ${code}`);
-    }
-  };
-
-  const reorderTask = (id: string, direction: 'up' | 'down') => {
-    setTasks(prev => {
-        const task = prev.find(t => t.id === id);
-        if (!task || !task.queueOrder) return prev;
-        
-        const currentOrder = task.queueOrder;
-        const targetOrder = direction === 'up' ? currentOrder - 1 : currentOrder + 1;
-        
-        if (targetOrder < 1 || targetOrder > prev.length) return prev;
-        
-        const neighbor = prev.find(t => t.queueOrder === targetOrder);
-        if (!neighbor) return prev; // Should always find one if orders are contiguous
-        
-        const newTasks = prev.map(t => {
-            if (t.id === id) return { ...t, queueOrder: targetOrder };
-            if (t.id === neighbor.id) return { ...t, queueOrder: currentOrder };
-            return t;
-        });
-        
-        return newTasks.sort((a, b) => (a.queueOrder || 0) - (b.queueOrder || 0));
-    });
-  };
+  const isStopDisabled = !isAnyDownloading && isStopDisabledState;
 
   // Background Queue Manager
   useEffect(() => {
     if (!isQueueActive || stopRequestedRef.current) return;
 
-    // Wait if any download is already active
     const isAnyActive = tasks.some(t => t.status === 'downloading');
     if (isAnyActive) return;
 
-    // Find the next waiting task by queueOrder
     const sortedWaiting = [...tasks]
         .filter(t => t.status === 'waiting')
         .sort((a, b) => (a.queueOrder || 0) - (b.queueOrder || 0));
@@ -612,357 +85,19 @@ export function useDownloader() {
         addLog(`🕒 Queue Manager: Starting next task: ${nextTask.title}`);
         startDownload(nextTask.url, nextTask.service, nextTask.options, nextTask.id);
     }
-  }, [isQueueActive, isLoading, tasks]);
-
-  const startBatchDownload = async (urlsText: string, options: DownloadOptions = {}) => {
-    const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u);
-    if (urls.length === 0) return;
-    
-    addLog(`🚀 [BATCH] Starting ${urls.length} downloads...`);
-    setIsLoading(true);
-    setIsStopDisabledState(false);
-    stopRequestedRef.current = false;
-
-    for (let i = 0; i < urls.length; i++) {
-        if (stopRequestedRef.current) break;
-        addLog(`📦 [${i+1}/${urls.length}] Processing ${urls[i]}`);
-        const code = await runSingleDownload(urls[i], 'ytdlp', options, `Batch #${i+1}`);
-      if (code !== 0 && !stopRequestedRef.current) addLog(`⚠️ Item ${i + 1} failed. Continuing...`);
-    }
-
-    setIsLoading(false);
-    setIsStopDisabledState(true); // Disable stop button after completion
-    setProgress(100);
-    toast.success("Batch Download Finished!");
-    addLog("🎉 All batch items processed!");
-  };
-
-  const getMediaMetadata = async (url: string): Promise<MediaMetadata | null> => {
-    if (!url) return null;
-    setIsLoading(true);
-    addLog(`🔍 Fetching metadata for: ${url}`);
-    
-    // Parse target video ID and index if present in a playlist link
-    let requestedVideoId: string | undefined;
-    let requestedIndex: number | undefined;
-    
-    try {
-      const urlObj = new URL(url);
-      requestedVideoId = urlObj.searchParams.get('v') || undefined;
-      const idxStr = urlObj.searchParams.get('index');
-      if (idxStr) requestedIndex = parseInt(idxStr);
-    } catch (e) {}
-
-    try {
-      const cmd = Command.sidecar("ytdlp", [
-        "--js-runtimes", "node",
-        "--dump-single-json",
-        "--flat-playlist",
-        "--no-download",
-        "--no-check-certificate",
-        url
-      ]);
-      
-      const child = await cmd.spawn();
-      activeProcessesRef.current.set("metadata", child);
-
-      let stdout = '';
-      let stderr = '';
-
-      cmd.stdout.on('data', (data: string) => {
-        if (stopRequestedRef.current) return;
-        stdout += data;
-      });
-      cmd.stderr.on('data', (data: string) => {
-        if (stopRequestedRef.current) return;
-        stderr += data;
-      });
-
-      const completion = new Promise<{ code: number | null }>((resolve) => {
-        cmd.on('close', (data) => resolve(data));
-      });
-
-      await completion;
-
-      if (!stdout) {
-        if (stderr) addLog(`⚠️ yt-dlp stderr: ${stderr}`);
-        throw new Error("No metadata returned from yt-dlp");
-      }
-      
-      const json = JSON.parse(stdout);
-      
-      const formatBytes = (bytes?: number) => {
-        if (!bytes) return '';
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-      };
-
-      const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
-      
-      // For single YouTube videos: make a second call without --flat-playlist to get full format list
-      let availableQualities: any[] = [];
-      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
-
-      if (!isPlaylist && isYouTube) {
-        try {
-          addLog(`🎞️ Fetching available qualities...`);
-          const fmtCmd = Command.sidecar("ytdlp", [
-            "--js-runtimes", "node",
-            "--dump-single-json",
-            "--no-download",
-            "--no-check-certificate",
-            url
-          ]);
-          let fmtStdout = '';
-          fmtCmd.stdout.on('data', (d: string) => { fmtStdout += d; });
-          await new Promise<void>(resolve => {
-            fmtCmd.on('close', () => resolve());
-            fmtCmd.spawn().catch(() => resolve());
-          });
-          if (fmtStdout) {
-            const fmtJson = JSON.parse(fmtStdout);
-            const formats: any[] = fmtJson.formats || [];
-            
-            // Find best audio-only format for size estimation
-            const audioFormats = formats.filter(f => f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'));
-            const bestAudio = audioFormats.sort((a, b) => (b.filesize || b.filesize_approx || 0) - (a.filesize || a.filesize_approx || 0))[0];
-            const audioSize = bestAudio ? (bestAudio.filesize || bestAudio.filesize_approx || 0) : 0;
-
-            // Extract unique heights from video-only or combined streams
-            const heightMap = new Map<number, number>(); // height -> best filesize
-            for (const f of formats) {
-              if (f.height && f.height > 0) {
-                const currentSize = f.filesize || f.filesize_approx || 0;
-                const existing = heightMap.get(f.height) || 0;
-                if (currentSize > existing) {
-                  heightMap.set(f.height, currentSize);
-                }
-              }
-            }
-            
-            // Sort heights descending
-            const sortedHeights = Array.from(heightMap.keys()).filter(h => h >= 144).sort((a, b) => b - a);
-            
-            availableQualities = sortedHeights.map(h => {
-              const videoSize = heightMap.get(h) || 0;
-              const totalSize = videoSize + audioSize;
-              const sizeStr = totalSize > 0 ? ` (~${formatBytes(totalSize)})` : '';
-              return {
-                value: `${h}p`,
-                label: `${h}p${sizeStr}`,
-                size: totalSize
-              };
-            });
-
-            if (audioSize > 0) {
-              availableQualities.push({
-                value: 'audio',
-                label: `Audio Only (MP3) (~${formatBytes(audioSize)})`,
-                size: audioSize
-              });
-            }
-
-            // Always include 'best' at the top
-            availableQualities = [
-              { value: 'best', label: '🚀 Best Available', size: 0 },
-              ...availableQualities
-            ];
-            
-            addLog(`✅ Available qualities: ${availableQualities.length - 1} found.`);
-          }
-        } catch (e) {
-          addLog(`⚠️ Could not fetch available qualities: ${e}`);
-          availableQualities = ['best', '1080p', '720p', '480p', 'audio'];
-        }
-      }
-
-      const metadata: MediaMetadata = {
-        id: json.id,
-        title: json.title || (isPlaylist ? "Playlist" : "Unknown Title"),
-        thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
-        isPlaylist: isPlaylist,
-        formats: json.formats || [],
-        availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
-        availableSubtitles: (() => {
-          const subs: any[] = [];
-          const manualSubs = json.subtitles || {};
-          const autoSubs = json.automatic_captions || {};
-          
-          // 1. Process Manual Subtitles
-          for (const [lang, formats] of Object.entries(manualSubs)) {
-            const typedFormats = formats as any[];
-            const name = typedFormats.find(f => f.name)?.name || lang;
-            subs.push({ lang, name: `${name}`, type: 'manual' });
-          }
-
-          // 2. Process Automatic Captions
-          // We look for the "Original" auto-generated one (often matching the video language)
-          // and treat others as translated.
-          const videoLang = json.language || 'en'; // Fallback to 'en'
-          
-          for (const [lang, formats] of Object.entries(autoSubs)) {
-            const typedFormats = formats as any[];
-            const name = typedFormats.find(f => f.name)?.name || lang;
-            
-            // Check if this sub lang is already in subs (avoid duplicates)
-            if (subs.find(s => s.lang === lang)) continue;
-
-            const isOriginal = lang.toLowerCase() === videoLang.toLowerCase() || 
-                             lang.split('-')[0] === videoLang.split('-')[0];
-            
-            subs.push({ 
-              lang, 
-              name: `${name}${isOriginal ? ' (Original Auto)' : ' (Auto Translate)'}`, 
-              type: isOriginal ? 'auto' : 'translated',
-              isOriginal
-            });
-          }
-
-          // Sort: Manual first, then Original Auto, then Translated
-          return subs.length > 0 ? subs.sort((a, b) => {
-            const order = { 'manual': 0, 'auto': 1, 'translated': 2 };
-            if (order[a.type as keyof typeof order] !== order[b.type as keyof typeof order]) {
-              return order[a.type as keyof typeof order] - order[b.type as keyof typeof order];
-            }
-            return a.name.localeCompare(b.name);
-          }) : undefined;
-        })(),
-        entries: json.entries ? json.entries.map((e: any, i: number) => ({
-          id: e.id || String(i),
-          title: e.title || `Video ${i + 1}`,
-          url: e.url || e.webpage_url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : ""),
-          thumbnail: e.thumbnail || (e.thumbnails?.[0]?.url) || "",
-          index: i + 1
-        })) : [],
-        requestedVideoId,
-        requestedIndex
-      };
-      
-      addLog(`✅ Metadata found: ${metadata.title} (Type: ${metadata.isPlaylist ? 'Playlist' : 'Single Video'})`);
-      if (metadata.isPlaylist) addLog(`📦 Found ${metadata.entries?.length || 0} videos in playlist.`);
-      return metadata;
-    } catch (e) {
-      addLog(`⚠️ Metadata fetch error: ${e}`);
-      return null;
-    } finally {
-      setIsLoading(false);
-      activeProcessesRef.current.delete("metadata");
-    }
-  };
-
-  const analyzeLink = async (urlInput: string) => {
-    if (!urlInput) return null;
-    let url = urlInput.trim();
-
-    // Auto-detect YouTube Playlist IDs
-    if (!url.startsWith('http') && (url.startsWith('PL') || url.startsWith('UU') || url.startsWith('LL')) && url.length >= 10) {
-      addLog(`✨ Detected YouTube Playlist ID - Formatting URL...`);
-      url = `https://www.youtube.com/playlist?list=${url}`;
-    }
-
-    setIsLoading(true);
-    addLog(`🔍 Deep analyzing link: ${url}`);
-    
-    try {
-      if (url.includes('bigtitbitches.com')) {
-        addLog("✨ Detected special site - Extracting source...");
-        const btbCmd = Command.sidecar("wget", ["-q", "-O", "-", url]);
-        const btbChild = await btbCmd.spawn();
-        activeProcessesRef.current.set("analysis", btbChild);
-
-        let btbStdout = '';
-        btbCmd.stdout.on('data', (data: string) => {
-          if (stopRequestedRef.current) return;
-          btbStdout += data;
-        });
-
-        const btbCompletion = new Promise<{ code: number | null }>((resolve) => {
-          btbCmd.on('close', (data) => {
-              activeProcessesRef.current.delete("analysis");
-              resolve(data);
-          });
-        });
-        await btbCompletion;
-
-        const btbHtml = btbStdout;
-        
-        const iframeMatch = btbHtml.match(/iframe.*?src="(https:\/\/fuqster\.com\/embed\/\d+)"/);
-        if (!iframeMatch) throw new Error("Embed iframe not found");
-        
-        const embedUrl = iframeMatch[1];
-        const embedCmd = Command.sidecar("wget", ["-q", "-O", "-", embedUrl]);
-        const embedChild = await embedCmd.spawn();
-        activeProcessesRef.current.set("analysis", embedChild);
-
-        let embedStdout = '';
-        embedCmd.stdout.on('data', (data: string) => {
-          if (stopRequestedRef.current) return;
-          embedStdout += data;
-        });
-
-        const embedCompletion = new Promise<{ code: number | null }>((resolve) => {
-          embedCmd.on('close', (data) => {
-              activeProcessesRef.current.delete("analysis");
-              resolve(data);
-          });
-        });
-        await embedCompletion;
-
-        const embedHtml = embedStdout;
-        
-        const videoUrlMatch = embedHtml.match(/video_url:\s*'(https:\/\/fuqster\.com\/get_file\/.*?)'/);
-        if (!videoUrlMatch) throw new Error("Direct video URL not found");
-        
-        addLog("✅ successfully extracted direct URL!");
-        return { directUrl: videoUrlMatch[1], embedUrl, isPlaylist: false };
-      }
-      
-      const meta = await getMediaMetadata(url);
-      
-      let embedUrl: string | null = null;
-      if (meta && !meta.isPlaylist) {
-          if (url.includes('youtube.com') || url.includes('youtu.be')) {
-              const videoId = meta.id || meta.requestedVideoId;
-              if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
-          }
-      }
-
-      return { 
-        directUrl: url, 
-        embedUrl: embedUrl, 
-        isPlaylist: meta?.isPlaylist || false,
-        metadata: meta 
-      };
-    } catch (e) {
-      addLog(`❌ Extraction failed: ${e}`);
-      return null;
-    } finally {
-      setIsLoading(false);
-      activeProcessesRef.current.delete("analysis");
-    }
-  };
+  }, [isQueueActive, tasks, startDownload, stopRequestedRef, addLog]);
 
   const performFileCleanup = async (task: DownloadTask) => {
     try {
       const downloadDir = task.options.downloadPath || baseDownloadPath;
-      const dirExists = await exists(downloadDir);
-      
-      if (!dirExists) return;
+      if (!(await exists(downloadDir))) return;
 
       const entries = await readDir(downloadDir);
-      
-      // Heuristic: identify search terms from title and url
       const terms: string[] = [];
-      
-      // 1. From title (clean it)
       let cleanTitle = task.title.replace(/\.(mp4|mkv|webm|avi|mp3|zip|rar|exe|pdf|iso)$|(\.part)$|(\.ytdl)$|(\.temp)$|(\.tmp)$/gi, '');
       cleanTitle = cleanTitle.replace(/[^a-z0-9]/gi, ' ').trim();
-      if (cleanTitle.length > 3) terms.push(cleanTitle.split(' ')[0]); // Primary word
-      
-      // 2. From URL if possible
+      if (cleanTitle.length > 3) terms.push(cleanTitle.split(' ')[0]);
+
       try {
         const urlObj = new URL(task.url);
         const urlFile = urlObj.pathname.split('/').pop()?.split('?')[0];
@@ -972,20 +107,15 @@ export function useDownloader() {
         }
       } catch (e) {}
 
-      // Common temp extensions
       const tempExts = ['.part', '.ytdl', '.temp', '.tmp', '.unknown_video.part'];
-      
       addLog(`🧹 Scanning for fragments of "${task.title}"...`);
       let count = 0;
 
       for (const entry of entries) {
         const entryLower = entry.name.toLowerCase();
         const isTemp = tempExts.some(ext => entryLower.endsWith(ext)) || entryLower.includes('.ytdl-');
-        
         if (isTemp) {
-          // Check if filename contains any of our key terms
           const matches = terms.some(term => term.length > 2 && entryLower.includes(term.toLowerCase()));
-          
           if (matches || entryLower.includes(task.id)) {
             const fullPath = await path.join(downloadDir, entry.name);
             await remove(fullPath);
@@ -994,50 +124,41 @@ export function useDownloader() {
           }
         }
       }
-      
-      if (count > 0) {
-        addLog(`✅ Cleaned up ${count} file(s).`);
-      } else {
-        addLog(`ℹ️ No matching fragments found for deletion.`);
-      }
+      if (count > 0) addLog(`✅ Cleaned up ${count} file(s).`);
     } catch (e) {
-      console.error("Cleanup error:", e);
       addLog(`⚠️ Cleanup failed: ${e}`);
     }
   };
 
-  const removeTask = async (id: string, deleteFiles: boolean = false) => {
+  const removeTaskWithCleanup = async (id: string, deleteFiles: boolean = false) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
     if (task.status === 'downloading' || task.status === 'analyzing') {
        await stopDownload();
-       await new Promise(r => setTimeout(r, 800)); // Wait for handle to release
+       await new Promise(r => setTimeout(r, 800));
     }
 
     if (deleteFiles || task.status !== 'completed') {
       await performFileCleanup(task);
     }
-
-    setTasks(prev => prev.filter(t => t.id !== id));
+    removeTaskState(id);
   };
 
-  const clearTasks = async (onlyCompleted: boolean = false) => {
+  const clearTasksWithCleanup = async (onlyCompleted: boolean = false) => {
     if (!onlyCompleted) {
-      // First stop any active ones
       const hasActive = tasks.some(t => t.status === 'downloading' || t.status === 'analyzing');
       if (hasActive) {
         await stopDownload();
         await new Promise(r => setTimeout(r, 1000));
       }
 
-      // Cleanup all unfinished tasks files
       for (const task of tasks) {
         if (task.status !== 'completed') {
            await performFileCleanup(task);
         }
       }
-      setTasks([]);
+      clearTasksState();
       toast.success("List cleared and temporary files removed");
     } else {
       setTasks(prev => prev.filter(t => t.status !== 'completed'));
@@ -1046,28 +167,15 @@ export function useDownloader() {
 
   const revealFolder = async (folderPath?: string) => {
     const targetPath = folderPath || baseDownloadPath;
-    if (!targetPath) {
-      toast.error("Download path not set");
-      return;
-    }
+    if (!targetPath) return toast.error("Download path not set");
 
     try {
-      const isExists = await exists(targetPath);
-      if (!isExists) {
-        toast.error("Folder does not exist yet");
-        return;
-      }
-
-      // Detect OS from path format (Windows paths have drive letters like C:\)
-      const isWindows = /^[A-Za-z]:[\\\/]/.test(targetPath);
-      if (isWindows) {
-        await Command.create('explorer', [targetPath]).execute();
-      } else {
-        await Command.create('xdg-open', [targetPath]).execute();
-      }
+      if (!(await exists(targetPath))) return toast.error("Folder does not exist yet");
+      const isWindowsOS = /^[A-Za-z]:[\\\/]/.test(targetPath);
+      if (isWindowsOS) await Command.create('explorer', [targetPath]).execute();
+      else await Command.create('xdg-open', [targetPath]).execute();
       addLog(`📁 Opening folder: ${targetPath}`);
     } catch (e) {
-      console.error("Failed to open folder:", e);
       toast.error("Failed to open folder");
     }
   };
@@ -1093,8 +201,8 @@ export function useDownloader() {
     setTasks,
     addTask,
     addTasksBulk,
-    removeTask,
-    clearTasks,
+    removeTask: removeTaskWithCleanup,
+    clearTasks: clearTasksWithCleanup,
     getMediaMetadata,
     isQueueActive,
     reorderTask,
