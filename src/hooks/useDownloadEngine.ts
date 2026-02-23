@@ -16,6 +16,7 @@ interface UseDownloadEngineOptions {
   activeProcessesRef: React.MutableRefObject<Map<string, any>>;
   setIsStopDisabledState: (disabled: boolean) => void;
   baseDownloadPath: string;
+  addTasksBulk: (items: any[]) => Promise<string[]>;
 }
 
 export function useDownloadEngine({
@@ -27,7 +28,8 @@ export function useDownloadEngine({
   stopRequestedRef,
   activeProcessesRef,
   setIsStopDisabledState,
-  baseDownloadPath
+  baseDownloadPath,
+  addTasksBulk
 }: UseDownloadEngineOptions) {
 
   const runSingleDownload = useCallback(async (
@@ -64,9 +66,16 @@ export function useDownloadEngine({
       if (service === 'ytdlp') {
         let ffmpegPath = "ffmpeg";
         if (isWindows) {
-           ffmpegPath = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
+           // Try local ffmpeg.exe first
+           if (await exists("ffmpeg.exe")) {
+             ffmpegPath = await path.resolve("ffmpeg.exe");
+           } else {
+             ffmpegPath = "ffmpeg"; // Fallback to system path
+           }
         } else {
-           ffmpegPath = "/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu";
+           // Path for Linux/Unix systems (especially in sidecar/bin patterns often used in this project)
+           ffmpegPath = await path.join(await path.appLocalDataDir(), "src-tauri", "bin", "ffmpeg-x86_64-unknown-linux-gnu");
+           if (!(await exists(ffmpegPath))) ffmpegPath = "ffmpeg"; // Fallback
         }
 
         let qualityArgs: string;
@@ -261,24 +270,27 @@ export function useDownloadEngine({
     const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u);
     if (urls.length === 0) return;
     
-    addLog(`🚀 [BATCH] Starting ${urls.length} downloads...`);
+    addLog(`🚀 [BATCH] Preparing ${urls.length} items...`);
     setIsLoading(true);
     setIsStopDisabledState(false);
     stopRequestedRef.current = false;
 
-    for (let i = 0; i < urls.length; i++) {
-        if (stopRequestedRef.current) break;
-        addLog(`📦 [${i+1}/${urls.length}] Processing ${urls[i]}`);
-        const code = await runSingleDownload(urls[i], 'ytdlp', options, `Batch #${i+1}`);
-      if (code !== 0 && !stopRequestedRef.current) addLog(`⚠️ Item ${i + 1} failed. Continuing...`);
-    }
+    const items = urls.map(url => ({
+        url,
+        service: 'ytdlp' as DownloadService,
+        options,
+        title: url
+    }));
+
+    const ids = await addTasksBulk(items);
+    addLog(`✅ Added ${ids.length} tasks to manager list.`);
+
+    // If queue manager is NOT active, we'd need to loop and start them here.
+    // However, in this version, the Smart Queue is ALWAYS active by default.
+    // The useDownloader hook's effect will catch these 'waiting' tasks.
 
     setIsLoading(false);
-    setIsStopDisabledState(true);
-    setProgress(100);
-    toast.success("Batch Download Finished!");
-    addLog("🎉 All batch items processed!");
-  }, [runSingleDownload, addLog, setIsLoading, setIsStopDisabledState, setProgress, stopRequestedRef]);
+  }, [addTasksBulk, addLog, setIsLoading, setIsStopDisabledState, stopRequestedRef]);
 
   return {
     runSingleDownload,

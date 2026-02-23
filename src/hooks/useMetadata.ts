@@ -141,6 +141,8 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         isPlaylist: isPlaylist,
         formats: json.formats || [],
         availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
+        requestedIndex: json.playlist_index,
+        requestedVideoId: json._type === 'url' ? json.id : undefined,
         availableSubtitles: (() => {
           const subs: any[] = [];
           const manualSubs = json.subtitles || {};
@@ -163,10 +165,12 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
       };
 
       if (isPlaylist) {
-        metadata.entries = (json.entries || []).map((entry: any) => ({
+        metadata.entries = (json.entries || []).map((entry: any, idx: number) => ({
+          index: entry.playlist_index || entry.index || (idx + 1),
           id: entry.id,
           title: entry.title,
-          url: entry.url || entry.webpage_url
+          url: entry.url || entry.webpage_url,
+          thumbnail: entry.thumbnail || (entry.thumbnails?.[0]?.url) || ""
         }));
       }
 
