@@ -4,9 +4,9 @@ import { toast } from 'sonner';
 import { open, ask } from '@tauri-apps/plugin-dialog';
 
 import { useDownloader } from '../../hooks/useDownloader';
-import { DownloadTable } from '../downloader/DownloadTable';
+import { DownloadTable } from './DownloadTable';
 import { SmartAddDialog } from '../downloader/SmartAddDialog';
-import { SearchTab } from '../downloader/SearchTab';
+import { SearchTab } from './SearchTab';
 import { LogViewer } from './LogViewer';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
