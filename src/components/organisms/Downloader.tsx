@@ -7,7 +7,7 @@ import { useDownloader } from '../../hooks/useDownloader';
 import { DownloadTable } from '../downloader/DownloadTable';
 import { SmartAddDialog } from '../downloader/SmartAddDialog';
 import { SearchTab } from '../downloader/SearchTab';
-import { LogViewer } from '../downloader/LogViewer';
+import { LogViewer } from './LogViewer';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
 import { ThemeToggle } from '../atoms/ThemeToggle';
