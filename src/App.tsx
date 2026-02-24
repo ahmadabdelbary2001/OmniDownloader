@@ -1,6 +1,6 @@
 import { Toaster } from './components/ui/sonner';
-import { Downloader } from './components/Downloader';
-import { ThemeProvider } from './components/ThemeProvider';
+import { Downloader } from './components/organisms/Downloader';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 const App = () => (
   <ThemeProvider defaultTheme="dark" storageKey="omni-downloader-theme">
