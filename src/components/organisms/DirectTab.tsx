@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { MediaPreview } from '../molecules/MediaPreview';
 import { PlaylistSelector } from '../molecules/PlaylistSelector';
-import { VideoPlayer } from '../downloader/VideoPlayer';
+import { VideoPlayer } from './VideoPlayer';
 import type { VideoQuality, MediaMetadata, DownloadOptions } from '../../types/downloader';
 
 interface DirectTabProps {
@@ -122,7 +122,11 @@ export function DirectTab({
 
       {/* Playlist picker */}
       {isPlaylist && metadata?.entries && metadata.entries.length > 0 && (
-        <PlaylistSelector entries={metadata.entries} onSelectionChange={setPlaylistItems} />
+        <PlaylistSelector 
+          entries={metadata.entries} 
+          onSelectionChange={setPlaylistItems}
+          onPreview={(id, title) => setPlayingVideo({ url: id, title })}
+        />
       )}
 
       {/* Action bar */}

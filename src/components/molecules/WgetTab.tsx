@@ -17,11 +17,11 @@ interface WgetTabProps {
   onSelectPath: () => void;
 }
 
-export function WgetTab({ 
-  url, setUrl, 
-  filename, setFilename, 
-  referer, setReferer, 
-  onDownload, onStop, 
+export function WgetTab({
+  url, setUrl,
+  filename, setFilename,
+  referer, setReferer,
+  onDownload, onStop,
   isStopDisabled, isLoading,
   customPath, onSelectPath
 }: WgetTabProps) {
@@ -29,8 +29,8 @@ export function WgetTab({
     <div className="flex flex-col h-full p-6 m-0 space-y-6">
       <div className="space-y-2">
         <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[2px]">Direct Download Link</label>
-        <Input 
-          placeholder="https://..." 
+        <Input
+          placeholder="https://..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           className="bg-card/50 border-border/40 text-base py-6"
@@ -39,8 +39,8 @@ export function WgetTab({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[2px]">Output Filename</label>
-          <Input 
-            placeholder="video.mp4" 
+          <Input
+            placeholder="video.mp4"
             value={filename}
             onChange={(e) => setFilename(e.target.value)}
             className="bg-card/50 border-border/40"
@@ -48,8 +48,8 @@ export function WgetTab({
         </div>
         <div className="space-y-2">
           <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[2px]">Referer URL</label>
-          <Input 
-            placeholder="https://source-site.com/..." 
+          <Input
+            placeholder="https://source-site.com/..."
             value={referer}
             onChange={(e) => setReferer(e.target.value)}
             className="bg-card/50 border-border/40"
@@ -57,7 +57,7 @@ export function WgetTab({
         </div>
       </div>
       <div className="flex gap-2">
-        <Button 
+        <Button
           onClick={onSelectPath}
           variant="outline"
           title={customPath || "Use default path"}
@@ -68,7 +68,7 @@ export function WgetTab({
         <Button
           onClick={() => onDownload(url, { wgetFilename: filename, wgetReferer: referer, downloadPath: customPath || undefined })}
           disabled={isLoading || !url}
-          className="h-12 flex-1 gap-2 font-bold"
+          className="h-12 flex-1 gap-2 font-bold uppercase tracking-widest text-xs"
           style={{ background: 'var(--grad-hero)' }}
         >
           <FileDown className="w-5 h-5" /> START WGET

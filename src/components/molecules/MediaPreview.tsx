@@ -21,8 +21,14 @@ export function MediaPreview({ metadata, url, isPlaylist, onWatch }: MediaPrevie
   const isTargeted       = !!targetEntry;
 
   return (
-    <div className="flex gap-4 p-3 shrink-0 rounded-lg bg-white/5 border border-white/10 animate-in fade-in slide-in-from-top-2 relative group/meta">
-      <div className="relative shrink-0 w-24 aspect-video rounded overflow-hidden border border-white/10 group/thumb">
+    <div className="flex gap-4 p-4 rounded-2xl bg-gradient-to-br from-primary/[0.1] to-secondary/[0.1] border border-primary/10 animate-in fade-in slide-in-from-top-4 duration-700 relative overflow-hidden group/meta">
+      {/* Pulsing dot - Visual indicator of active metadata */}
+      <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm">
+        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+        <span className="text-[8px] font-black text-primary uppercase tracking-widest">Metadata Active</span>
+      </div>
+
+      <div className="relative shrink-0 w-24 aspect-video rounded-xl overflow-hidden border border-white/10 group/thumb shadow-lg">
         <img
           src={displayThumbnail}
           className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-500"
@@ -40,25 +46,27 @@ export function MediaPreview({ metadata, url, isPlaylist, onWatch }: MediaPrevie
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-black text-primary uppercase tracking-wider mb-1">
+      <div className="flex-1 min-w-0 pr-20">
+        <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1 opacity-70">
           {isPlaylist && isTargeted ? 'Detected Video in Playlist' : 'Detected Content'}
         </p>
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-xs font-bold text-white truncate flex-1">{displayTitle}</h4>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onWatch(displayUrl, displayTitle)}
-            className="h-6 px-2 gap-1 text-[9px] font-black bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20 transition-all opacity-0 group-meta:opacity-100"
-          >
-            <Youtube className="w-3 h-3" /> WATCH
-          </Button>
+          <h4 className="text-sm font-black text-foreground truncate flex-1 tracking-tight leading-tight uppercase">{displayTitle}</h4>
         </div>
-        <p className="text-[10px] text-white/40 mt-1">
-          {isPlaylist ? `📁 Playlist (${metadata.entries?.length || 0} videos)` : '🎬 Single video detected'}
-          {isPlaylist && isTargeted && ` • Targeted Video #${targetEntry.index}`}
-        </p>
+        <div className="flex items-center gap-3 mt-2">
+            <p className="text-[10px] font-bold text-muted-foreground/60 flex items-center gap-1.5">
+              {isPlaylist ? `📁 PL (${metadata.entries?.length || 0})` : '🎬 Single video'}
+              {isPlaylist && isTargeted && <span className="text-primary/60">• Targeted Video #{targetEntry.index}</span>}
+            </p>
+            <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onWatch(displayUrl, displayTitle)}
+                className="h-6 px-2 gap-1.5 text-[9px] font-black bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20 transition-all opacity-0 group-meta:opacity-100"
+            >
+                <Youtube className="w-3 h-3" /> WATCH PREVIEW
+            </Button>
+        </div>
       </div>
     </div>
   );

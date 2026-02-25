@@ -5,7 +5,7 @@ import { open, ask } from '@tauri-apps/plugin-dialog';
 
 import { useDownloader } from '../../hooks/useDownloader';
 import { DownloadTable } from './DownloadTable';
-import { SmartAddDialog } from '../downloader/SmartAddDialog';
+import { SmartAddDialog } from './SmartAddDialog';
 import { SearchTab } from './SearchTab';
 import { LogViewer } from './LogViewer';
 import { Button } from '../ui/button';
