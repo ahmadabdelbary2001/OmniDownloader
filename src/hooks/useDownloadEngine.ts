@@ -33,18 +33,18 @@ export function useDownloadEngine({
 }: UseDownloadEngineOptions) {
 
   const runSingleDownload = useCallback(async (
-    targetUrl: string, 
-    service: DownloadService, 
+    targetUrl: string,
+    service: DownloadService,
     options: DownloadOptions = {},
     taskId?: string,
     label?: string
   ): Promise<number | null> => {
     const downloadDir = options.downloadPath || baseDownloadPath || (await path.downloadDir());
-    
+
     if (taskId) {
       updateTask(taskId, { status: 'downloading' });
     }
-    
+
     try {
       if (!(await exists(downloadDir))) {
         await mkdir(downloadDir, { recursive: true });
@@ -52,7 +52,7 @@ export function useDownloadEngine({
       }
     } catch (e) {}
 
-    const smartLabel = label || (targetUrl.includes('t.me/') ? 'Telegram Link' : 'Direct Link');
+    const smartLabel = label || targetUrl;
     const clients = service === 'ytdlp' ? ['web_embedded,mweb', 'android,web', 'ios'] : ['default'];
     let lastCode: number | null = 1;
     const isWindows = checkIsWindows();
@@ -66,16 +66,9 @@ export function useDownloadEngine({
       if (service === 'ytdlp') {
         let ffmpegPath = "ffmpeg";
         if (isWindows) {
-           // Try local ffmpeg.exe first
-           if (await exists("ffmpeg.exe")) {
-             ffmpegPath = await path.resolve("ffmpeg.exe");
-           } else {
-             ffmpegPath = "ffmpeg"; // Fallback to system path
-           }
+          ffmpegPath = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
         } else {
-           // Path for Linux/Unix systems (especially in sidecar/bin patterns often used in this project)
-           ffmpegPath = await path.join(await path.appLocalDataDir(), "src-tauri", "bin", "ffmpeg-x86_64-unknown-linux-gnu");
-           if (!(await exists(ffmpegPath))) ffmpegPath = "ffmpeg"; // Fallback
+          ffmpegPath = "/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu";
         }
 
         let qualityArgs: string;
@@ -111,7 +104,7 @@ export function useDownloadEngine({
           "--no-overwrites"
         ];
         if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
-        
+
         if (options.subtitleLang && options.subtitleLang !== 'none' && q !== 'audio') {
           args.push("--write-subs", "--write-auto-subs", "--sub-langs", options.subtitleLang, "--convert-subs", "srt");
           if (options.embedSubtitles) {
@@ -121,30 +114,21 @@ export function useDownloadEngine({
 
         args.push(targetUrl);
       } else {
+        // wget
         args = [
           "-c",
           "--continue",
           "--progress=dot:giga",
           "-P", downloadDir,
-          "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          `--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36`
         ];
         if (options.wgetReferer) args.push(`--referer=${options.wgetReferer}`);
         if (options.wgetFilename) args.push("-O", options.wgetFilename);
         args.push(targetUrl);
       }
 
+      // ── CRITICAL FIX: Attach listeners BEFORE spawn ──────────────────
       const cmd = Command.sidecar(service, args);
-      const child = await cmd.spawn();
-      
-      if (stopRequestedRef.current) {
-        try {
-          await child.kill();
-          addLog("⚡ [HALTED] Process stopped immediately after spawn.");
-        } catch (e) {}
-        return 1;
-      }
-
-      if (taskId) activeProcessesRef.current.set(taskId, child);
 
       let currentComponentIdx = 0;
       let completedBytes = 0;
@@ -153,8 +137,11 @@ export function useDownloadEngine({
       let lastPhaseActualSize = 0;
       const totalEstimated = (options.estimatedVideoSize || 0) + (options.estimatedAudioSize || 0);
 
-      cmd.stdout.on('data', (line) => {
+      cmd.stdout.on('data', (line: string) => {
+        if (stopRequestedRef.current) return;
         const cleanLine = line.trim();
+        if (!cleanLine) return;
+
         const formatsMatch = cleanLine.match(/Downloading (\d+) format\(s\)/);
         if (formatsMatch) {
           detectedPhases = parseInt(formatsMatch[1]);
@@ -182,14 +169,17 @@ export function useDownloadEngine({
             if (totalEstimated > 0) {
               totalDownloaded = completedBytes + p.downloadedBytes;
               totalSize = completedBytes + p.totalBytes;
+              
               if (currentComponentIdx === 1 && detectedPhases > 1) {
-                  totalSize += (options.estimatedAudioSize || 0);
+                totalSize += (options.estimatedAudioSize || 0);
               }
+              
               const finalTotal = Math.max(totalEstimated, totalSize);
               globalPercent = (totalDownloaded / finalTotal) * 100;
+              
               const targetPhases = detectedPhases || (options.estimatedAudioSize ? 2 : 1);
               if (globalPercent > 99.9 && currentComponentIdx < targetPhases) {
-                 globalPercent = 99.9;
+                globalPercent = 99.9;
               }
               totalSize = finalTotal;
             } else {
@@ -198,35 +188,54 @@ export function useDownloadEngine({
 
             globalPercent = Math.min(99.9, globalPercent);
             setProgress(globalPercent);
+            
             if (taskId) {
-              updateTask(taskId, { 
-                progress: globalPercent, 
+              updateTask(taskId, {
+                progress: globalPercent,
                 downloadedBytes: totalDownloaded,
                 totalBytes: totalSize,
-                speed: p.speed, 
-                size: p.size,
-                eta: p.eta 
+                speed: p.speed,
+                size: p.size, // Still pass it, but DownloadRow prefers totalBytes
+                eta: p.eta
               });
             }
           }
+        } else if (cleanLine.includes('[ffmpeg]')) {
+           if (taskId) updateTask(taskId, { speed: 'Merging Components...' });
+           addLog(cleanLine);
         } else {
           addLog(cleanLine);
         }
       });
 
-      cmd.stderr.on('data', (line) => {
+      cmd.stderr.on('data', (line: string) => {
         if (stopRequestedRef.current) return;
-        addLog(`⚠️ ERR: ${line.trim()}`);
+        const trimmed = line.trim();
+        if (trimmed) addLog(`⚠️ ERR: ${trimmed}`);
       });
 
-      const output = await new Promise<{ code: number | null }>((resolve) => {
+      const closePromise = new Promise<{ code: number | null }>((resolve) => {
         cmd.on('close', (data) => resolve(data));
       });
 
+      // Spawn AFTER listeners are registered
+      const child = await cmd.spawn();
+
+      if (stopRequestedRef.current) {
+        try { await child.kill(); } catch (e) {}
+        addLog("⚡ [HALTED] Process stopped immediately after spawn.");
+        return 1;
+      }
+
+      if (taskId) activeProcessesRef.current.set(taskId, child);
+
+      const output = await closePromise;
       if (taskId) activeProcessesRef.current.delete(taskId);
+
       lastCode = output.code;
+      addLog(`🏁 Process exited with code: ${lastCode}`);
       if (lastCode === 0 || stopRequestedRef.current) break;
-      addLog(`⚠️ Client ${client} failed. Retrying next...`);
+      addLog(`⚠️ Client ${client} failed (code ${lastCode}). Retrying next...`);
     }
 
     return lastCode;
@@ -234,7 +243,7 @@ export function useDownloadEngine({
 
   const startDownload = useCallback(async (targetUrl: string, service: DownloadService, options: DownloadOptions = {}, existingTaskId?: string) => {
     let taskId = existingTaskId;
-    
+
     if (!taskId) {
       taskId = await addTask(targetUrl, service, options, targetUrl);
     } else {
@@ -243,9 +252,9 @@ export function useDownloadEngine({
 
     stopRequestedRef.current = false;
     setIsStopDisabledState(false);
-    
+
     const code = await runSingleDownload(targetUrl, service, options, taskId);
-    
+
     setIsStopDisabledState(true);
 
     if (stopRequestedRef.current) {
@@ -269,25 +278,21 @@ export function useDownloadEngine({
   const startBatchDownload = useCallback(async (urlsText: string, options: DownloadOptions = {}) => {
     const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u);
     if (urls.length === 0) return;
-    
+
     addLog(`🚀 [BATCH] Preparing ${urls.length} items...`);
     setIsLoading(true);
     setIsStopDisabledState(false);
     stopRequestedRef.current = false;
 
     const items = urls.map(url => ({
-        url,
-        service: 'ytdlp' as DownloadService,
-        options,
-        title: url
+      url,
+      service: 'ytdlp' as DownloadService,
+      options,
+      title: url
     }));
 
     const ids = await addTasksBulk(items);
     addLog(`✅ Added ${ids.length} tasks to manager list.`);
-
-    // If queue manager is NOT active, we'd need to loop and start them here.
-    // However, in this version, the Smart Queue is ALWAYS active by default.
-    // The useDownloader hook's effect will catch these 'waiting' tasks.
 
     setIsLoading(false);
   }, [addTasksBulk, addLog, setIsLoading, setIsStopDisabledState, stopRequestedRef]);

@@ -11,12 +11,24 @@ interface UseMetadataOptions {
 }
 
 export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProcessesRef }: UseMetadataOptions = {}) {
+
   const getMediaMetadata = useCallback(async (url: string): Promise<MediaMetadata | null> => {
     if (!url) return null;
     if (setIsLoading) setIsLoading(true);
     if (addLog) addLog(`🔍 Fetching metadata for: ${url}`);
-    
+
+    let requestedVideoId: string | undefined;
+    let requestedIndex: number | undefined;
+
     try {
+      const urlObj = new URL(url);
+      requestedVideoId = urlObj.searchParams.get('v') || undefined;
+      const idxStr = urlObj.searchParams.get('index');
+      if (idxStr) requestedIndex = parseInt(idxStr);
+    } catch (e) {}
+
+    try {
+      // ── CRITICAL FIX: Attach listeners BEFORE spawn ──────────────────
       const cmd = Command.sidecar("ytdlp", [
         "--js-runtimes", "node",
         "--dump-single-json",
@@ -25,9 +37,6 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         "--no-check-certificate",
         url
       ]);
-      
-      const child = await cmd.spawn();
-      if (activeProcessesRef) activeProcessesRef.current.set("metadata", child);
 
       let stdout = '';
       let stderr = '';
@@ -45,6 +54,9 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         cmd.on('close', (data) => resolve(data));
       });
 
+      const child = await cmd.spawn();
+      if (activeProcessesRef) activeProcessesRef.current.set("metadata", child);
+
       await completion;
       if (activeProcessesRef) activeProcessesRef.current.delete("metadata");
 
@@ -52,16 +64,18 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         if (stderr && addLog) addLog(`⚠️ yt-dlp stderr: ${stderr}`);
         throw new Error("No metadata returned from yt-dlp");
       }
-      
+
       const json = JSON.parse(stdout);
       const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
-      
+
       let availableQualities: any[] = [];
       const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
 
       if (!isPlaylist && isYouTube) {
         try {
           if (addLog) addLog(`🎞️ Fetching available qualities...`);
+
+          // ── CRITICAL FIX: Attach listeners BEFORE spawn ──────────────────
           const fmtCmd = Command.sidecar("ytdlp", [
             "--js-runtimes", "node",
             "--dump-single-json",
@@ -71,14 +85,18 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
           ]);
           let fmtStdout = '';
           fmtCmd.stdout.on('data', (d: string) => { fmtStdout += d; });
-          await new Promise<void>(resolve => {
+
+          const fmtClose = new Promise<void>(resolve => {
             fmtCmd.on('close', () => resolve());
-            fmtCmd.spawn().catch(() => resolve());
           });
+
+          await fmtCmd.spawn();
+          await fmtClose;
+
           if (fmtStdout) {
             const fmtJson = JSON.parse(fmtStdout);
             const formats: any[] = fmtJson.formats || [];
-            
+
             const audioFormats = formats.filter(f => f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'));
             const bestAudio = audioFormats.sort((a, b) => (b.filesize || b.filesize_approx || 0) - (a.filesize || a.filesize_approx || 0))[0];
             const audioSize = bestAudio ? (bestAudio.filesize || bestAudio.filesize_approx || 0) : 0;
@@ -88,23 +106,17 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
               if (f.height && f.height > 0) {
                 const currentSize = f.filesize || f.filesize_approx || 0;
                 const existing = heightMap.get(f.height) || 0;
-                if (currentSize > existing) {
-                  heightMap.set(f.height, currentSize);
-                }
+                if (currentSize > existing) heightMap.set(f.height, currentSize);
               }
             }
-            
+
             const sortedHeights = Array.from(heightMap.keys()).filter(h => h >= 144).sort((a, b) => b - a);
-            
+
             availableQualities = sortedHeights.map(h => {
               const videoSize = heightMap.get(h) || 0;
               const totalSize = videoSize + audioSize;
               const sizeStr = totalSize > 0 ? ` (~${formatBytes(totalSize)})` : '';
-              return {
-                value: `${h}p`,
-                label: `${h}p${sizeStr}`,
-                size: totalSize
-              };
+              return { value: `${h}p`, label: `${h}p${sizeStr}`, size: totalSize };
             });
 
             if (audioSize > 0) {
@@ -119,7 +131,7 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
               { value: 'best', label: '🚀 Best Available', size: 0 },
               ...availableQualities
             ];
-            
+
             if (addLog) addLog(`✅ Available qualities: ${availableQualities.length - 1} found.`);
           }
         } catch (e) {
@@ -138,29 +150,45 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         id: json.id,
         title: json.title || (isPlaylist ? "Playlist" : "Unknown Title"),
         thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
-        isPlaylist: isPlaylist,
+        isPlaylist,
         formats: json.formats || [],
         availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
-        requestedIndex: json.playlist_index,
-        requestedVideoId: json._type === 'url' ? json.id : undefined,
+        requestedIndex: requestedIndex || json.playlist_index,
+        requestedVideoId: requestedVideoId || (json._type === 'url' ? json.id : undefined),
         availableSubtitles: (() => {
           const subs: any[] = [];
           const manualSubs = json.subtitles || {};
           const autoSubs = json.automatic_captions || {};
           
+          const videoLang = json.language || 'en';
+
           for (const [lang, formats] of Object.entries(manualSubs)) {
             const typedFormats = formats as any[];
             const name = typedFormats.find(f => f.name)?.name || lang;
-            subs.push({ lang, name: `${name}`, type: 'manual' });
+            subs.push({ lang, name, type: 'manual' });
           }
 
           for (const [lang, formats] of Object.entries(autoSubs)) {
             if (subs.find(s => s.lang === lang)) continue;
             const typedFormats = formats as any[];
-            const name = (typedFormats.find(f => f.name)?.name || lang) + ' (Auto)';
-            subs.push({ lang, name: `${name}`, type: 'auto' });
+            const name = typedFormats.find(f => f.name)?.name || lang;
+            const isOriginal = lang.toLowerCase() === videoLang.toLowerCase() || lang.split('-')[0] === videoLang.split('-')[0];
+            
+            subs.push({ 
+              lang, 
+              name: `${name}${isOriginal ? ' (Original Auto)' : ' (Auto Translate)'}`, 
+              type: isOriginal ? 'auto' : 'translated',
+              isOriginal
+            });
           }
-          return subs.length > 0 ? subs : undefined;
+
+          return subs.length > 0 ? subs.sort((a, b) => {
+            const order = { 'manual': 0, 'auto': 1, 'translated': 2 };
+            const aOrder = order[a.type as keyof typeof order] ?? 3;
+            const bOrder = order[b.type as keyof typeof order] ?? 3;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            return a.name.localeCompare(b.name);
+          }) : undefined;
         })()
       };
 

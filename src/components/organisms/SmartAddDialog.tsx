@@ -46,6 +46,29 @@ export function SmartAddDialog({
   const [embedSubtitles, setEmbedSubtitles]   = useState(true);
   const [showAllTranslations, setShowAllTranslations] = useState(false);
 
+  // Helper to convert selection Set to yt-dlp string (e.g. 1,2,5-10)
+  const getRangeString = (indices: Set<number>) => {
+    if (indices.size === 0) return "";
+    const sorted = Array.from(indices).sort((a: number, b: number) => a - b);
+    const ranges: string[] = [];
+    let start = sorted[0];
+    let end = sorted[0];
+
+    for (let i = 1; i <= sorted.length; i++) {
+      if (i < sorted.length && sorted[i] === end + 1) {
+        end = sorted[i];
+      } else {
+        if (start === end) ranges.push(`${start}`);
+        else ranges.push(`${start}-${end}`);
+        if (i < sorted.length) {
+          start = sorted[i];
+          end = sorted[i];
+        }
+      }
+    }
+    return ranges.join(",");
+  };
+
   const isYouTubeUrl = (u: string) => u.includes("youtube.com") || u.includes("youtu.be");
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,11 +98,13 @@ export function SmartAddDialog({
                 if (found) selection.add(found.index);
               }
               setSelectedIndices(selection);
+              setPlaylistItems(getRangeString(selection));
               setIsPlaylistView(false);
             } else {
               const all = new Set<number>();
               entries?.forEach((e: any) => all.add(e.index));
               setSelectedIndices(all);
+              setPlaylistItems(getRangeString(all));
               setIsPlaylistView(true);
             }
           }
@@ -106,10 +131,9 @@ export function SmartAddDialog({
       const items = metadata.entries
         ?.filter(e => selectedIndices.has(e.index))
         .map(entry => ({
-          url, service: typeInfo.service,
+          url: entry.url, service: typeInfo.service,
           options: {
             quality, downloadPath: customPath || defaultPath,
-            playlistItems: `${entry.index}`,
             subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
             embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
             estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
@@ -149,7 +173,14 @@ export function SmartAddDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#0d0d14] border border-white/10 text-foreground max-w-2xl shadow-[0_0_60px_rgba(0,0,0,0.8)] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-2xl">
+      <DialogContent className="bg-[#0b0b12]/95 backdrop-blur-3xl border border-white/10 text-foreground max-w-2xl shadow-[0_0_80px_rgba(0,0,0,0.9)] p-0 overflow-hidden flex flex-col max-h-[95vh] rounded-[2rem] transition-all duration-700">
+        
+        {/* ── Aurora Glows ────────────────────────────────────────── */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2rem]">
+          <div className="absolute -top-20 -left-20 w-64 h-64 rounded-full opacity-[0.15] blur-[80px]" style={{ background: 'var(--lav-400)' }} />
+          <div className="absolute -bottom-20 -right-20 w-64 h-64 rounded-full opacity-[0.1] blur-[80px]" style={{ background: 'var(--acc-300)' }} />
+        </div>
+
 
         {/* ── Inline Video Preview (top, conditionally shown) ───────── */}
         {previewUrl && (
@@ -221,7 +252,8 @@ export function SmartAddDialog({
                   metadata={metadata}
                   url={url}
                   isPlaylist={metadata.isPlaylist}
-                  onWatch={(u) => setPreviewUrl(isYouTubeUrl(url) ? `https://www.youtube.com/embed/${u}?autoplay=1` : u)}
+                  onWatch={(watchUrl, _title) => setPreviewUrl(isYouTubeUrl(url) ? `https://www.youtube.com/embed/${watchUrl}?autoplay=1` : watchUrl)
+                  }
                 />
 
                 {/* Playlist toggle */}
@@ -250,8 +282,11 @@ export function SmartAddDialog({
                   <PlaylistSelector
                     entries={metadata.entries}
                     onSelectionChange={setPlaylistItems}
+                    onIndicesChange={setSelectedIndices}
                     initialSelection={selectedIndices}
-                    onPreview={(id) => setPreviewUrl(isYouTubeUrl(url) ? `https://www.youtube.com/embed/${id}?autoplay=1` : id)}
+                    onPreview={(id, _title) => setPreviewUrl(isYouTubeUrl(url) ? `https://www.youtube.com/embed/${id}?autoplay=1` : id)}
+                    requestedVideoId={metadata.requestedVideoId}
+                    requestedIndex={metadata.requestedIndex}
                   />
                 )}
 
@@ -310,18 +345,18 @@ export function SmartAddDialog({
         </ScrollArea>
 
         {/* ── Footer ──────────────────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-white/5 bg-white/[0.03] flex gap-2 justify-end shrink-0">
+        <div className="px-8 py-6 border-t border-white/5 bg-white/[0.02] flex gap-3 justify-end shrink-0 relative z-10">
           <Button
             variant="ghost"
             onClick={onClose}
-            className="uppercase font-black text-[10px] tracking-widest text-white/30 hover:text-white hover:bg-white/5 px-6 transition-all"
+            className="uppercase font-black text-[10px] tracking-[0.2em] text-white/30 hover:text-white hover:bg-white/5 px-8 transition-all h-12 rounded-xl"
           >
             Cancel
           </Button>
           <Button
             onClick={handleAdd}
             disabled={!url || isAnalyzing}
-            className="font-black uppercase text-[10px] tracking-widest px-10 h-11 rounded-xl shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] transition-all"
+            className="font-black uppercase text-[10px] tracking-[0.2em] px-12 h-12 rounded-xl shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)] hover:shadow-[0_0_40px_rgba(var(--primary-rgb),0.5)] transition-all transform hover:scale-[1.02] active:scale-[0.98]"
             style={{ background: 'var(--grad-hero)' }}
           >
             <Download className="w-4 h-4 mr-2" />

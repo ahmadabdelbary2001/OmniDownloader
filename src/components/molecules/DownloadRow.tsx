@@ -13,9 +13,10 @@ interface DownloadRowProps {
   onOpenFolder: (id: string) => void;
   onRemove: (id: string) => void;
   onReorder: (id: string, direction: 'up' | 'down') => void;
+  onPreview: (url: string, title: string) => void;
 }
 
-export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFolder, onRemove, onReorder }: DownloadRowProps) {
+export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFolder, onRemove, onReorder, onPreview }: DownloadRowProps) {
   return (
     <div className={cn(
       'grid grid-cols-12 gap-1 p-3 border-b border-border hover:bg-muted/30 transition-colors items-center group relative',
@@ -40,22 +41,35 @@ export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFold
 
       {/* Thumbnail + title */}
       <div className="col-span-4 flex items-center gap-3 overflow-hidden">
-        {task.thumbnail ? (
-          <img src={task.thumbnail} className="w-10 h-6 object-cover rounded bg-muted border border-border" alt="" />
-        ) : (
-          <div className="w-10 h-6 rounded bg-muted border border-border flex items-center justify-center">
-            <Badge variant="outline" className="text-[8px] p-0 px-1 opacity-40">{task.service}</Badge>
+        <div 
+          className="relative group/thumb cursor-pointer shrink-0"
+          onClick={() => onPreview(task.url, task.title)}
+        >
+          {task.thumbnail ? (
+            <img src={task.thumbnail} className="w-12 h-7 object-cover rounded-lg bg-muted border border-border group-hover/thumb:border-primary/50 transition-all shadow-md" alt="" />
+          ) : (
+            <div className="w-12 h-7 rounded-lg bg-muted border border-border flex items-center justify-center group-hover/thumb:border-primary/50 transition-all">
+              <Badge variant="outline" className="text-[8px] p-0 px-1 opacity-40">{task.service}</Badge>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center rounded-lg transition-opacity">
+            <Play className="w-3 h-3 text-white fill-white" />
           </div>
-        )}
+        </div>
         <div className="flex flex-col overflow-hidden">
-          <span className="text-xs font-bold text-foreground/90 truncate">{task.title}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-foreground/90 truncate">{task.title}</span>
+            <Badge variant="outline" className="text-[8px] p-0 px-1.5 h-3.5 opacity-40 font-black uppercase tracking-tighter border-primary/20 bg-primary/5 text-primary">
+              {task.service === 'ytdlp' ? 'YT-DLP' : 'WGET'}
+            </Badge>
+          </div>
           <span className="text-[9px] text-muted-foreground truncate uppercase tracking-tighter">{task.url}</span>
         </div>
       </div>
 
       {/* Size */}
       <div className="col-span-1 text-[10px] text-muted-foreground font-mono truncate">
-        {task.totalBytes ? formatBytes(task.totalBytes) : (task.size || 'Unknown')}
+        {task.totalBytes && task.totalBytes > 0 ? formatBytes(task.totalBytes) : (task.size || 'Unknown')}
       </div>
 
       {/* Status badge */}

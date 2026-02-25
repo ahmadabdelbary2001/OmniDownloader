@@ -7,13 +7,18 @@ import type { PlaylistEntry } from '../../types/downloader';
 interface PlaylistSelectorProps {
   entries: PlaylistEntry[];
   onSelectionChange: (value: string) => void;
+  onIndicesChange?: (indices: Set<number>) => void;
   initialSelection?: Set<number>;
   onPreview?: (id: string, title: string) => void;
+  requestedVideoId?: string;
+  requestedIndex?: number;
 }
 
 type SelectionMode = 'checkbox' | 'range';
 
-export function PlaylistSelector({ entries, onSelectionChange, initialSelection, onPreview }: PlaylistSelectorProps) {
+export function PlaylistSelector({ 
+  entries, onSelectionChange, onIndicesChange, initialSelection, onPreview, requestedVideoId, requestedIndex 
+}: PlaylistSelectorProps) {
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(initialSelection || new Set());
   const [rangeFrom, setRangeFrom]             = useState('');
   const [rangeTo, setRangeTo]                 = useState('');
@@ -24,18 +29,25 @@ export function PlaylistSelector({ entries, onSelectionChange, initialSelection,
     if (initialSelection) setSelectedIndices(initialSelection);
   }, [initialSelection]);
 
-  // Sync selection → parent string
   useEffect(() => {
     if (mode === 'range') {
-      onSelectionChange(rangeFrom || rangeTo ? `${rangeFrom || 1}-${rangeTo || ''}` : '');
+      const start = Number(rangeFrom) || 1;
+      const end = Number(rangeTo) || total;
+      onSelectionChange(`${start}-${end}`);
+      if (onIndicesChange) {
+        const set = new Set<number>();
+        for (let i = start; i <= end; i++) set.add(i);
+        onIndicesChange(set);
+      }
     } else {
       onSelectionChange(
         selectedIndices.size > 0
           ? Array.from(selectedIndices).sort((a: number, b: number) => a - b).join(',')
           : ''
       );
+      if (onIndicesChange) onIndicesChange(selectedIndices);
     }
-  }, [selectedIndices, rangeFrom, rangeTo, mode, onSelectionChange]);
+  }, [selectedIndices, rangeFrom, rangeTo, mode, onSelectionChange, onIndicesChange, total]);
 
   const toggle = (index: number) => {
     setSelectedIndices((prev: Set<number>) => {
@@ -73,72 +85,76 @@ export function PlaylistSelector({ entries, onSelectionChange, initialSelection,
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-hidden" style={{ height: 320 }}>
+      <div className="flex-1 overflow-hidden transition-all duration-500" style={{ height: 350 }}>
         {mode === 'checkbox' ? (
           <ScrollArea className="h-full">
-            <div className="p-2 space-y-1">
+            <div className="p-3 space-y-2">
               {entries.map(entry => {
                 const selected = selectedIndices.has(entry.index);
+                const isRequested = entry.id === requestedVideoId || entry.index === requestedIndex;
                 return (
                   <div
                     key={entry.id}
                     onClick={() => toggle(entry.index)}
-                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border ${
+                    className={`group flex items-center gap-4 px-4 py-3 rounded-2xl cursor-pointer transition-all duration-300 border backdrop-blur-md ${
                       selected
-                        ? 'bg-primary/10 border-primary/20 shadow-[0_0_12px_rgba(var(--primary-rgb),0.1)]'
-                        : 'hover:bg-white/5 border-transparent hover:border-white/5'
-                    }`}
+                        ? 'bg-primary/10 border-primary/30 shadow-[0_0_20px_rgba(var(--primary-rgb),0.1)] scale-[1.01]'
+                        : 'hover:bg-white/5 border-transparent hover:border-white/10'
+                    } ${isRequested ? 'ring-2 ring-primary/40 ring-offset-2 ring-offset-background' : ''}`}
                   >
                     {/* Glowing Checkbox */}
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all shadow-sm ${
+                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
                       selected
-                        ? 'bg-primary border-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]'
-                        : 'border-white/10 group-hover:border-white/30'
+                        ? 'bg-primary border-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.6)]'
+                        : 'border-white/10 group-hover:border-primary/50'
                     }`}>
-                      {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      {selected && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
                     </div>
 
                     {/* Thumbnail */}
-                    <div className="relative w-16 h-9 rounded-lg border border-white/5 overflow-hidden shrink-0 group-hover:border-primary/30 transition-colors shadow-md">
+                    <div className="relative w-20 h-11 rounded-xl border border-white/5 overflow-hidden shrink-0 group-hover:border-primary/40 transition-all duration-500 shadow-xl">
                       <img
                         src={entry.thumbnail}
-                        className={`object-cover w-full h-full transition-all duration-300 ${selected ? 'opacity-100' : 'opacity-40 group-hover:opacity-80'}`}
+                        className={`object-cover w-full h-full transition-all duration-700 ${selected ? 'scale-110 opacity-100' : 'opacity-40 grayscale group-hover:opacity-90 group-hover:grayscale-0'}`}
                         alt=""
                       />
                       {onPreview && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onPreview(entry.id, entry.title); }}
-                          className="absolute inset-0 bg-primary/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                          className="absolute inset-0 bg-primary/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300"
                         >
-                          <PlayCircle className="w-4 h-4 text-white drop-shadow-lg" />
+                          <PlayCircle className="w-5 h-5 text-white drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
                         </button>
                       )}
                     </div>
 
-                    {/* Index */}
-                    <span className={`text-[10px] font-black w-5 shrink-0 transition-colors ${selected ? 'text-primary' : 'text-white/15'}`}>
-                      {entry.index}
-                    </span>
-
-                    {/* Title */}
-                    <span className={`text-[11px] truncate flex-1 font-semibold transition-colors ${
-                      selected ? 'text-white font-black' : 'text-white/40 group-hover:text-white/70'
-                    }`}>
-                      {entry.title}
-                    </span>
+                    {/* Index & Title */}
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-[10px] font-black tracking-widest transition-colors ${selected ? 'text-primary' : 'text-white/20'}`}>
+                        VIDEO #{entry.index.toString().padStart(2, '0')}
+                      </span>
+                      <span className={`text-[12px] truncate leading-tight transition-colors ${
+                        selected ? 'text-white font-bold' : 'text-white/40 group-hover:text-white/80'
+                      }`}>
+                        {entry.title}
+                      </span>
+                      {isRequested && <span className="text-[8px] font-black uppercase text-primary tracking-[0.2em] mt-0.5 animate-pulse">Original Link Task</span>}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </ScrollArea>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center p-8 space-y-6">
-            <div className="flex flex-col items-center gap-2 mb-2">
-              <Hash className="w-10 h-10 text-primary/20" />
-              <h3 className="text-[10px] font-black uppercase tracking-[3px] text-white/25">Range Selection</h3>
-              <p className="text-[9px] text-white/15 text-center">Download a continuous range of videos</p>
+          <div className="h-full flex flex-col items-center justify-center p-8 space-y-8 animate-in fade-in zoom-in-95 duration-700">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-3xl bg-primary/5 border border-primary/10 flex items-center justify-center shadow-inner">
+                 <Hash className="w-8 h-8 text-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)]" />
+              </div>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40">Range Selection</h3>
+              <p className="text-[10px] text-white/20 text-center max-w-[200px] leading-relaxed">Download a custom range from the playlist</p>
             </div>
-            <div className="flex items-center gap-4 bg-white/5 p-6 rounded-2xl border border-white/10 shadow-2xl shadow-black/50">
+            <div className="flex items-center gap-6 bg-white/[0.02] p-8 rounded-[2rem] border border-white/5 shadow-2xl backdrop-blur-sm">
               {[
                 { label: 'From', value: rangeFrom, placeholder: '1',            set: (v: string) => setRangeFrom(v) },
                 { label: 'To',   value: rangeTo,   placeholder: total.toString(), set: (v: string) => setRangeTo(v)   },

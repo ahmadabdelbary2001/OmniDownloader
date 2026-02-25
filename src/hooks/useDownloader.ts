@@ -53,7 +53,8 @@ export function useDownloader() {
     stopRequestedRef,
     activeProcessesRef,
     setIsStopDisabledState,
-    baseDownloadPath
+    baseDownloadPath,
+    addTasksBulk,
   });
 
   const { analyzeLink } = useLinkAnalyzer({

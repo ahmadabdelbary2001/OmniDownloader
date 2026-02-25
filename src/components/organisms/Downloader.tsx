@@ -14,6 +14,7 @@ import { ThemeToggle } from '../atoms/ThemeToggle';
 import { StoragePicker } from '../molecules/StoragePicker';
 import { FilterSidebar, matchesFilter } from '../molecules/FilterSidebar';
 import type { FilterType } from '../molecules/FilterSidebar';
+import { VideoPlayer } from './VideoPlayer';
 import Logo from '../../assets/logo.svg';
 
 export function Downloader() {
@@ -34,6 +35,7 @@ export function Downloader() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen]           = useState(false);
   const [filter, setFilter]                   = useState<FilterType>('all');
+  const [playingVideo, setPlayingVideo]       = useState<{ url: string; title: string } | null>(null);
 
   const filteredTasks = tasks.filter(t => matchesFilter(t, filter));
 
@@ -197,6 +199,7 @@ export function Downloader() {
             onOpenFolder={handleOpenFolder}
             onReorder={reorderTask}
             isQueueActive={isQueueActive}
+            onPreview={(url, title) => setPlayingVideo({ url, title })}
           />
 
           {isLogsOpen && (
@@ -213,6 +216,14 @@ export function Downloader() {
           )}
         </div>
       </div>
+
+      {playingVideo && (
+        <VideoPlayer
+          url={playingVideo.url}
+          title={playingVideo.title}
+          onClose={() => setPlayingVideo(null)}
+        />
+      )}
 
       {/* ── Dialogs ──────────────────────────────────────────────── */}
       <SmartAddDialog

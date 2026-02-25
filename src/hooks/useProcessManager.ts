@@ -41,8 +41,8 @@ export function useProcessManager({ addLog, setTasks }: UseProcessManagerOptions
         "ytdlp-x86_64-pc-windows-gnu.exe",
         "wget-x86_64-pc-windows-msvc.exe",
         "wget-x86_64-pc-windows-gnu.exe",
-        "ffmpeg.exe",
-        "node.exe" 
+        "ffmpeg.exe"
+        // "node.exe" - REMOVED: Killing node.exe kills the dev server/terminal and exits the app
       ];
       for (const exe of targets) {
         try {

@@ -15,6 +15,7 @@ interface DownloadTableProps {
   onOpenFolder: (id: string) => void;
   onReorder: (id: string, direction: 'up' | 'down') => void;
   isQueueActive: boolean;
+  onPreview: (url: string, title: string) => void;
 }
 
 type SortKey = 'title' | 'size' | 'status' | 'progress' | 'queueOrder' | 'createdAt';
@@ -46,7 +47,7 @@ function matchesStatus(task: DownloadTask, f: StatusFilter): boolean {
   return true;
 }
 
-export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder, onReorder, isQueueActive }: DownloadTableProps) {
+export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder, onReorder, isQueueActive, onPreview }: DownloadTableProps) {
   const [sortKey,      setSortKey]      = useState<SortKey>(() => (localStorage.getItem('omni_sort_key') as SortKey) || 'queueOrder');
   const [sortOrder,    setSortOrder]    = useState<'asc' | 'desc'>(() => (localStorage.getItem('omni_sort_order') as 'asc' | 'desc') || 'asc');
   const [filterStatus, setFilterStatus] = useState<StatusFilter>(() => (localStorage.getItem('omni_filter_status') as StatusFilter) || 'all');
@@ -111,6 +112,7 @@ export function DownloadTable({ tasks, onRemove, onPause, onResume, onOpenFolder
             onOpenFolder={onOpenFolder}
             onRemove={onRemove}
             onReorder={onReorder}
+            onPreview={onPreview}
           />
         ))}
       </div>
