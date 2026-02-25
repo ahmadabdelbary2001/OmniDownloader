@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
 import { MediaMetadata } from '../types/downloader';
-import { formatBytes } from '../lib/downloadUtils';
+import { formatBytes } from '../lib/utils';
 
 interface UseMetadataOptions {
   addLog?: (msg: string) => void;

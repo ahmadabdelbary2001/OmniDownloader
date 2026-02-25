@@ -173,12 +173,12 @@ export function SmartAddDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#0b0b12]/95 backdrop-blur-3xl border border-white/10 text-foreground max-w-2xl shadow-[0_0_80px_rgba(0,0,0,0.9)] p-0 overflow-hidden flex flex-col max-h-[95vh] rounded-[2rem] transition-all duration-700">
+      <DialogContent className="bg-background/95 backdrop-blur-3xl border border-border text-foreground max-w-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] p-0 overflow-hidden flex flex-col max-h-[95vh] rounded-[2rem] transition-all duration-700">
         
         {/* ── Aurora Glows ────────────────────────────────────────── */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2rem]">
-          <div className="absolute -top-20 -left-20 w-64 h-64 rounded-full opacity-[0.15] blur-[80px]" style={{ background: 'var(--lav-400)' }} />
-          <div className="absolute -bottom-20 -right-20 w-64 h-64 rounded-full opacity-[0.1] blur-[80px]" style={{ background: 'var(--acc-300)' }} />
+          <div className="absolute -top-20 -left-20 w-64 h-64 rounded-full opacity-[0.1] blur-[80px]" style={{ background: 'var(--lav-400)' }} />
+          <div className="absolute -bottom-20 -right-20 w-64 h-64 rounded-full opacity-[0.05] blur-[80px]" style={{ background: 'var(--acc-300)' }} />
         </div>
 
 
@@ -207,7 +207,7 @@ export function SmartAddDialog({
 
         {/* ── Header ──────────────────────────────────────────────── */}
         <div className="px-6 pt-5 pb-0 shrink-0">
-          <h2 className="text-[11px] font-black uppercase tracking-[3px] text-white/30 mb-4">Add New Download</h2>
+          <h2 className="text-[11px] font-black uppercase tracking-[3px] text-muted-foreground/60 mb-4">Add New Download</h2>
 
           {/* URL bar */}
           <div className="flex gap-2 mb-4">
@@ -216,13 +216,14 @@ export function SmartAddDialog({
               onChange={handleUrlChange}
               onKeyDown={e => e.key === 'Enter' && startAnalysis()}
               placeholder="Paste any link — YouTube, Twitter, direct file..."
-              className="bg-white/5 border-white/10 h-12 text-sm placeholder:text-white/20 focus-visible:ring-primary/50 transition-all rounded-xl"
+              className="bg-muted/40 border-border h-12 text-sm placeholder:text-muted-foreground/30 focus-visible:ring-primary/50 transition-all rounded-xl"
             />
             <Button
               onClick={startAnalysis}
               disabled={!url || isAnalyzing}
-              className="h-12 px-6 font-black uppercase text-[10px] tracking-widest rounded-xl shrink-0 transition-all"
-              style={{ background: isAnalyzing ? 'rgba(255,255,255,0.05)' : 'var(--grad-hero)' }}
+              variant="hero"
+              size="xl"
+              className="shrink-0"
             >
               {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Analyze"}
             </Button>
@@ -235,12 +236,16 @@ export function SmartAddDialog({
 
             {/* Save path */}
             <div className="flex gap-2 items-center">
-              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-white/5 border border-white/5 rounded-xl text-[10px] text-white/30 font-mono truncate">
+              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-muted/40 border border-border rounded-xl text-[10px] text-muted-foreground/60 font-mono truncate">
                 <Folder className="w-3.5 h-3.5 text-primary/50 shrink-0" />
                 {customPath || defaultPath}
               </div>
-              <Button onClick={handlePickFolder} variant="outline" size="icon"
-                className="h-10 w-10 rounded-xl border-white/10 bg-white/5 hover:bg-white/10 hover:text-primary shrink-0">
+              <Button 
+                onClick={handlePickFolder} 
+                variant="outline" 
+                size="icon"
+                className="rounded-xl shrink-0"
+              >
                 <Folder className="w-4 h-4" />
               </Button>
             </div>
@@ -258,7 +263,7 @@ export function SmartAddDialog({
 
                 {/* Playlist toggle */}
                 {metadata.isPlaylist && (
-                  <div className="flex bg-white/5 rounded-full p-1 border border-white/10 w-fit animate-in fade-in zoom-in-95 duration-500">
+                  <div className="flex bg-muted/40 rounded-full p-1 border border-border w-fit animate-in fade-in zoom-in-95 duration-500">
                     {(['Single Task', 'Playlist View'] as const).map((label) => {
                       const active = label === 'Playlist View' ? isPlaylistView : !isPlaylistView;
                       return (
@@ -267,7 +272,7 @@ export function SmartAddDialog({
                           onClick={() => setIsPlaylistView(label === 'Playlist View')}
                           className={cn(
                             "px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all duration-300",
-                            active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "text-white/30 hover:text-white"
+                            active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "text-muted-foreground hover:text-foreground"
                           )}
                         >
                           {label}
@@ -301,12 +306,12 @@ export function SmartAddDialog({
                   )}
                   {metadata.isPlaylist && isPlaylistView && (
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-white/30 tracking-widest px-1">Playlist Range</label>
+                      <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest px-1">Playlist Range</label>
                       <Input
                         value={playlistItems}
                         onChange={(e) => setPlaylistItems(e.target.value)}
                         placeholder="e.g. 1,2,5-10"
-                        className="bg-white/5 border-white/10 h-11 rounded-xl text-[11px] font-mono focus-visible:ring-primary/50 transition-all"
+                        className="bg-muted/40 border-border h-11 rounded-xl text-[11px] font-mono focus-visible:ring-primary/50 transition-all"
                       />
                     </div>
                   )}
@@ -345,19 +350,20 @@ export function SmartAddDialog({
         </ScrollArea>
 
         {/* ── Footer ──────────────────────────────────────────────── */}
-        <div className="px-8 py-6 border-t border-white/5 bg-white/[0.02] flex gap-3 justify-end shrink-0 relative z-10">
+        <div className="px-8 py-6 border-t border-border bg-muted/10 flex gap-3 justify-end shrink-0 relative z-10 transition-colors">
           <Button
             variant="ghost"
             onClick={onClose}
-            className="uppercase font-black text-[10px] tracking-[0.2em] text-white/30 hover:text-white hover:bg-white/5 px-8 transition-all h-12 rounded-xl"
+            className="px-8"
           >
             Cancel
           </Button>
           <Button
             onClick={handleAdd}
             disabled={!url || isAnalyzing}
-            className="font-black uppercase text-[10px] tracking-[0.2em] px-12 h-12 rounded-xl shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)] hover:shadow-[0_0_40px_rgba(var(--primary-rgb),0.5)] transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: 'var(--grad-hero)' }}
+            variant="hero"
+            size="xl"
+            className="px-12"
           >
             <Download className="w-4 h-4 mr-2" />
             Add to Queue

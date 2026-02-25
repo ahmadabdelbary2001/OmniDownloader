@@ -118,14 +118,14 @@ export function Downloader() {
           <div className="h-10 w-px bg-border mx-2" />
 
           <div className="flex items-center gap-1">
-            <Button onClick={() => setIsAddDialogOpen(true)} variant="accent" className="flex-col h-16 border-none gap-1 px-4">
+            <Button onClick={() => setIsAddDialogOpen(true)} variant="hero" className="flex-col h-16 border-none gap-1 px-4">
               <Plus className="w-5 h-5" />
               <span className="text-[10px] font-bold uppercase tracking-widest">Add URL</span>
             </Button>
 
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" className="flex-col h-16 border-none hover:bg-muted text-muted-foreground hover:text-[var(--acc-300)] gap-1 px-4 transition-all">
+                <Button variant="ghost" className="flex-col h-16 border-none hover:bg-muted text-muted-foreground hover:text-primary gap-1 px-4 transition-all">
                   <Search className="w-5 h-5" />
                   <span className="text-[10px] font-bold uppercase tracking-widest">Search</span>
                 </Button>

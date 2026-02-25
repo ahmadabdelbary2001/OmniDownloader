@@ -69,7 +69,7 @@ export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFold
 
       {/* Size */}
       <div className="col-span-1 text-[10px] text-muted-foreground font-mono truncate">
-        {task.totalBytes && task.totalBytes > 0 ? formatBytes(task.totalBytes) : (task.size || 'Unknown')}
+        {task.totalBytes && task.totalBytes > 0 ? formatBytes(task.totalBytes) : (task.size || 'Estimated...')}
       </div>
 
       {/* Status badge */}
@@ -77,7 +77,6 @@ export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFold
         {task.status === 'downloading' && (
           <div className="flex flex-col gap-0.5">
             <Badge className="bg-primary/20 text-primary border-primary/20 text-[9px] h-4">Active</Badge>
-            <span className="text-[9px] font-mono text-primary/70">{task.speed}</span>
           </div>
         )}
         {task.status === 'completed' && <Badge className="text-[9px] h-4" style={{ background: 'rgba(126,202,196,0.2)', color: 'var(--acc-400)', borderColor: 'rgba(126,202,196,0.25)' }}>Finished</Badge>}

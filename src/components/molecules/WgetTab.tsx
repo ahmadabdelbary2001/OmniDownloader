@@ -1,6 +1,7 @@
 import { FileDown, AlertCircle, Folder } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import { cn } from '../../lib/utils';
 
 interface WgetTabProps {
   url: string;
@@ -61,20 +62,21 @@ export function WgetTab({
           onClick={onSelectPath}
           variant="outline"
           title={customPath || "Use default path"}
-          className={`h-12 px-4 ${customPath ? 'text-primary bg-primary/5 border-primary/30' : 'text-muted-foreground border-border/40'}`}
+          className={cn("h-12 px-4 rounded-xl", customPath && "text-primary border-primary/30 bg-primary/5")}
         >
           <Folder className="w-5 h-5" />
         </Button>
         <Button
           onClick={() => onDownload(url, { wgetFilename: filename, wgetReferer: referer, downloadPath: customPath || undefined })}
           disabled={isLoading || !url}
-          className="h-12 flex-1 gap-2 font-bold uppercase tracking-widest text-xs"
-          style={{ background: 'var(--grad-hero)' }}
+          variant="hero"
+          size="xl"
+          className="flex-1 gap-2"
         >
           <FileDown className="w-5 h-5" /> START WGET
         </Button>
         {!isStopDisabled && (
-          <Button onClick={onStop} variant="destructive" className="h-12 px-6 font-bold uppercase tracking-tight">
+          <Button onClick={onStop} variant="destructive" className="h-12 px-6 font-black uppercase tracking-widest text-[10px] rounded-xl">
             STOP
           </Button>
         )}

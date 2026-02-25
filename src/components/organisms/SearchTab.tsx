@@ -28,7 +28,7 @@ export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: 
       {/* Search input */}
       <div className="flex flex-col gap-4 mb-4">
         <div className="space-y-2">
-          <label className="text-[10px] font-black text-accent uppercase tracking-[2px]">Enter Search Term</label>
+          <label className="text-[10px] font-black text-primary uppercase tracking-[2px]">Enter Search Term</label>
           <div className="flex gap-2">
             <Input
               placeholder="e.g. funny cats, programming tutorials..."
@@ -37,7 +37,7 @@ export function SearchTab({ onSearch, isSearching, searchResults, onDownload }: 
               onKeyDown={e => e.key === 'Enter' && onSearch(query)}
               className="bg-card/50 border-border/40 h-10 text-base focus-visible:ring-primary/50"
             />
-            <Button onClick={() => onSearch(query)} disabled={isSearching} variant="accent" className="h-10 min-w-32 font-black uppercase text-[10px] tracking-widest">
+            <Button onClick={() => onSearch(query)} disabled={isSearching} variant="hero" className="h-10 min-w-32">
               {isSearching ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
               SEARCH
             </Button>

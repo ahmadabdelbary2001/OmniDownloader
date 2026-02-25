@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Download, Folder } from 'lucide-react';
+import { Download, Folder, Loader2 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { MediaPreview } from '../molecules/MediaPreview';
 import { PlaylistSelector } from '../molecules/PlaylistSelector';
 import { VideoPlayer } from './VideoPlayer';
+import { cn } from '../../lib/utils';
 import type { VideoQuality, MediaMetadata, DownloadOptions } from '../../types/downloader';
 
 interface DirectTabProps {
@@ -72,8 +73,13 @@ export function DirectTab({
             onChange={e => setUrl(e.target.value)}
             className="bg-card/50 border-border/40 text-base py-6 flex-1"
           />
-          <Button variant="secondary" onClick={() => onAnalyze(url)} disabled={isLoading || !url} className="h-12 px-6 font-bold border border-white/10">
-            {isLoading ? <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" /> : 'ANALYZE'}
+          <Button 
+            variant="outline" 
+            onClick={() => onAnalyze(url)} 
+            disabled={isLoading || !url} 
+            className="h-12 px-6 font-black uppercase tracking-widest text-[10px] rounded-xl"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ANALYZE'}
           </Button>
         </div>
       </div>
@@ -135,21 +141,21 @@ export function DirectTab({
           onClick={onSelectPath}
           variant="outline"
           title={customPath || 'Use default path'}
-          className={`h-14 px-4 ${customPath ? 'text-primary bg-primary/5 border-primary/30' : 'text-muted-foreground border-border/40'}`}
+          className={cn("h-14 px-4 rounded-xl", customPath && "text-primary border-primary/30 bg-primary/5")}
         >
           <Folder className="w-5 h-5" />
         </Button>
         <Button
           onClick={handleDownload}
           disabled={isLoading || !url}
-          className="h-14 flex-1 gap-2 font-bold shadow-2xl text-base uppercase tracking-widest"
-          style={{ background: 'var(--grad-hero)' }}
+          variant="hero"
+          className="h-14 flex-1 gap-3 text-sm"
         >
           <Download className="w-5 h-5" />
           {isLoading ? 'Processing...' : playlistItems ? 'Resume / Start Download' : 'Start Processing'}
         </Button>
         {!isStopDisabled && (
-          <Button onClick={onStop} variant="destructive" className="h-14 px-8 font-black uppercase tracking-tighter animate-in slide-in-from-right-4">
+          <Button onClick={onStop} variant="destructive" className="h-14 px-8 font-black uppercase tracking-widest text-[10px] rounded-xl animate-in slide-in-from-right-4">
             STOP
           </Button>
         )}

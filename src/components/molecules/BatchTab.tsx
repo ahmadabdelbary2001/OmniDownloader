@@ -1,6 +1,7 @@
 import { Layers, Folder } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
+import { cn } from '../../lib/utils';
 
 interface BatchTabProps {
   batchUrls: string;
@@ -36,20 +37,21 @@ export function BatchTab({
           onClick={onSelectPath}
           variant="outline"
           title={customPath || 'Use default path'}
-          className={`h-12 px-4 ${customPath ? 'text-primary bg-primary/5 border-primary/30' : 'text-muted-foreground border-border/40'}`}
+          className={cn("h-12 px-4 rounded-xl", customPath && "text-primary border-primary/30 bg-primary/5")}
         >
           <Folder className="w-5 h-5" />
         </Button>
         <Button
           onClick={() => onDownload(batchUrls)}
           disabled={isLoading || !batchUrls}
-          className="h-12 flex-1 gap-2 font-bold uppercase tracking-widest text-xs"
-          style={{ background: 'var(--grad-hero)' }}
+          variant="hero"
+          size="xl"
+          className="flex-1 gap-2"
         >
           <Layers className="w-5 h-5" /> Start Batch Processing
         </Button>
         {!isStopDisabled && (
-          <Button onClick={onStop} variant="destructive" className="h-12 px-6 font-bold uppercase tracking-tight">STOP</Button>
+          <Button onClick={onStop} variant="destructive" className="h-12 px-6 rounded-xl font-black uppercase tracking-widest text-[10px]">STOP</Button>
         )}
       </div>
     </div>

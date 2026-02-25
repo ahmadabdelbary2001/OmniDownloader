@@ -1,5 +1,8 @@
 import { parseSizeToBytes } from './utils';
 
+/**
+ * Parses the yt-dlp/wget progress line into a structured object.
+ */
 export const parseProgress = (line: string) => {
   // yt-dlp patterns: 
   // [download]  12.3% of 10.00MiB at  2.41MiB/s ETA 00:04
@@ -22,15 +25,6 @@ export const parseProgress = (line: string) => {
     totalBytes,
     downloadedBytes
   };
-};
-
-export const formatBytes = (bytes?: number) => {
-  if (!bytes) return '';
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
 export const isWindows = () => navigator.userAgent.includes('Windows');

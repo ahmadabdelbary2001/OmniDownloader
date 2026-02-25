@@ -36,10 +36,15 @@ export function SearchResultCard({ result, onDownload, onWatch }: SearchResultCa
             {result.title}
           </h3>
           <div className="flex items-center gap-2 mt-3">
-            <Button size="sm" onClick={() => onDownload(result.webpage_url)} className="h-7 gap-1.5 text-[10px] font-bold bg-accent/20 hover:bg-accent text-accent hover:text-white border border-accent/30 shadow-sm shadow-accent/5">
-              <Download className="w-3 h-3" /> DOWNLOAD
+            <Button 
+              size="sm" 
+              onClick={() => onDownload(result.webpage_url)} 
+              variant="hero"
+              className="h-7 px-4 text-[9px] tracking-[0.1em]"
+            >
+              <Download className="w-3 h-3 mr-1.5" /> DOWNLOAD
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => onWatch(result.webpage_url, result.title)} className="h-7 gap-1.5 text-[10px] font-bold text-accent hover:bg-accent/10">
+            <Button size="sm" variant="outline" onClick={() => onWatch(result.webpage_url, result.title)} className="h-7 gap-1.5 text-[9px] font-black uppercase tracking-widest border-border hover:border-primary/50">
               <Youtube className="w-3 h-3" /> WATCH
             </Button>
             <a href={result.webpage_url} target="_blank" rel="noopener noreferrer">

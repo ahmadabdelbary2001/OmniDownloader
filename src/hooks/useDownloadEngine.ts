@@ -5,6 +5,7 @@ import { mkdir, exists } from '@tauri-apps/plugin-fs';
 import { toast } from "sonner";
 import { DownloadService, DownloadOptions, DownloadTask } from '../types/downloader';
 import { parseProgress, isWindows as checkIsWindows } from '../lib/downloadUtils';
+import { buildYtDlpArgs } from '../lib/ytdlpArgsBuilder';
 
 interface UseDownloadEngineOptions {
   addLog: (msg: string) => void;
@@ -64,55 +65,12 @@ export function useDownloadEngine({
 
       let args: string[] = [];
       if (service === 'ytdlp') {
-        let ffmpegPath = "ffmpeg";
-        if (isWindows) {
-          ffmpegPath = "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe";
-        } else {
+        let ffmpegPath = isWindows ? "D:\\my-py-server\\OmniDownloader\\ffmpeg.exe" : "/usr/bin/ffmpeg"; // Fallback path
+        if (!isWindows) {
           ffmpegPath = "/run/media/kali/Win/my-py-server/OmniDownloader/src-tauri/bin/ffmpeg-x86_64-unknown-linux-gnu";
         }
 
-        let qualityArgs: string;
-        const q = options.quality || 'best';
-        if (q === 'audio') {
-          qualityArgs = "bestaudio/best";
-        } else if (q === 'best') {
-          qualityArgs = "bestvideo+bestaudio/best";
-        } else {
-          const heightMatch = q.match(/(\d+)/);
-          if (heightMatch) {
-            const h = parseInt(heightMatch[1]);
-            qualityArgs = `bestvideo[height<=${h}][vcodec!*=av01]+bestaudio/bestvideo[height<=${h}]+bestaudio/best[height<=${h}]/best`;
-          } else {
-            qualityArgs = "bestvideo+bestaudio/best";
-          }
-        }
-
-        args = [
-          "--js-runtimes", "node",
-          "--ffmpeg-location", ffmpegPath,
-          "--merge-output-format", "mp4",
-          "--extractor-args", `youtube:player-client=${client}`,
-          "--newline",
-          "--progress",
-          "--no-colors",
-          "-P", downloadDir,
-          "-f", qualityArgs,
-          "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "--no-check-certificate",
-          "--prefer-free-formats",
-          "--continue",
-          "--no-overwrites"
-        ];
-        if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
-
-        if (options.subtitleLang && options.subtitleLang !== 'none' && q !== 'audio') {
-          args.push("--write-subs", "--write-auto-subs", "--sub-langs", options.subtitleLang, "--convert-subs", "srt");
-          if (options.embedSubtitles) {
-            args.push("--embed-subs");
-          }
-        }
-
-        args.push(targetUrl);
+        args = buildYtDlpArgs(targetUrl, options, downloadDir, ffmpegPath, client);
       } else {
         // wget
         args = [
