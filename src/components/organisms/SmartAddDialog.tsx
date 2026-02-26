@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Dialog, DialogContent } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -123,6 +124,10 @@ export function SmartAddDialog({
   };
 
   const handleAdd = () => {
+    if (quality === 'subtitles' && subtitleLang === 'none') {
+      toast.error('Please select a subtitle language!');
+      return;
+    }
     const typeInfo = analyzeLinkType(url);
     const selectedQ    = metadata?.availableQualities?.find(q => q.value === quality);
     const audioOnlySize = metadata?.availableQualities?.find(q => q.value === 'audio')?.size || 0;
@@ -130,17 +135,26 @@ export function SmartAddDialog({
     if (metadata?.isPlaylist && isPlaylistView && selectedIndices.size > 0) {
       const items = metadata.entries
         ?.filter(e => selectedIndices.has(e.index))
-        .map(entry => ({
-          url: entry.url, service: typeInfo.service,
-          options: {
-            quality, downloadPath: customPath || defaultPath,
-            subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
-            embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
-            estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
-            estimatedAudioSize: audioOnlySize || undefined
-          },
-          title: entry.title, thumbnail: entry.thumbnail
-        })) || [];
+        .map(entry => {
+          // Calculate proportional size based on duration if available
+          const repDuration = metadata.duration || 1;
+          const sizeFactor = entry.duration ? (entry.duration / repDuration) : 1;
+
+          const estVideoSize = selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : 0;
+          const estAudioSize = audioOnlySize || 0;
+
+          return {
+            url: entry.url, service: typeInfo.service,
+            options: {
+              quality, downloadPath: customPath || defaultPath,
+              subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
+              embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
+              estimatedVideoSize: estVideoSize > 0 && quality !== 'subtitles' ? Math.round(estVideoSize * sizeFactor) : undefined,
+              estimatedAudioSize: estAudioSize > 0 && quality !== 'subtitles' ? Math.round(estAudioSize * sizeFactor) : undefined
+            },
+            title: entry.title, thumbnail: entry.thumbnail
+          };
+        }) || [];
       if (items.length > 0) onAddBulk(items);
     } else {
       const options: DownloadOptions = {
@@ -150,8 +164,8 @@ export function SmartAddDialog({
         playlistItems: isPlaylistView ? (playlistItems || undefined) : undefined,
         subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
         embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
-        estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
-        estimatedAudioSize: audioOnlySize || undefined
+        estimatedVideoSize: selectedQ && quality !== 'subtitles' ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
+        estimatedAudioSize: quality !== 'subtitles' ? (audioOnlySize || undefined) : undefined
       };
       const title = metadata?.title || wgetFilename || url.split('/').pop() || "Download Task";
       onAdd(url, typeInfo.service, options, title, metadata?.thumbnail);
@@ -292,17 +306,22 @@ export function SmartAddDialog({
                     onPreview={(id, _title) => setPreviewUrl(isYouTubeUrl(url) ? `https://www.youtube.com/embed/${id}?autoplay=1` : id)}
                     requestedVideoId={metadata.requestedVideoId}
                     requestedIndex={metadata.requestedIndex}
+                    availableQualities={metadata.availableQualities}
+                    selectedQuality={quality}
+                    representativeDuration={metadata.duration}
                   />
                 )}
 
                 {/* Quality + Playlist range */}
                 <div className="grid grid-cols-2 gap-4">
-                  {isYouTubeUrl(url) && (!metadata.isPlaylist || !isPlaylistView) && (
-                    <QualitySelector
-                      qualities={metadata.availableQualities}
-                      value={quality}
-                      onValueChange={setQuality}
-                    />
+                  {isYouTubeUrl(url) && (
+                    <div className={cn((!metadata.isPlaylist || !isPlaylistView) && "col-span-2")}>
+                      <QualitySelector
+                        qualities={metadata.availableQualities}
+                        value={quality}
+                        onValueChange={setQuality}
+                      />
+                    </div>
                   )}
                   {metadata.isPlaylist && isPlaylistView && (
                     <div className="space-y-2">
@@ -318,7 +337,7 @@ export function SmartAddDialog({
                 </div>
 
                 {/* Subtitles */}
-                {metadata.availableSubtitles && metadata.availableSubtitles.length > 0 && quality !== 'audio' && (
+                {metadata.availableSubtitles && metadata.availableSubtitles.length > 0 && (quality !== 'audio') && (
                   <SubtitleSelector
                     subtitles={metadata.availableSubtitles}
                     value={subtitleLang}

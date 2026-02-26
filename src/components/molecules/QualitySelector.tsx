@@ -13,6 +13,7 @@ const DEFAULT_QUALITIES: { value: VideoQuality; label: string }[] = [
   { value: '720p',  label: '✨ 720p HD' },
   { value: '480p',  label: '📱 480p SD' },
   { value: 'audio', label: '🎵 Audio Only (MP3)' },
+  { value: 'subtitles', label: '🔗 Subtitles Only (SRT/VTT)' },
 ];
 
 export function QualitySelector({
@@ -36,11 +37,14 @@ export function QualitySelector({
         </SelectTrigger>
         <SelectContent className="bg-card border-border text-foreground rounded-xl">
           {qualities && qualities.length > 0 ? (
-            qualities.map((q) => (
-              <SelectItem key={q.value} value={q.value}>
-                {q.label}
-              </SelectItem>
-            ))
+            <>
+              {qualities.map((q) => (
+                <SelectItem key={q.value} value={q.value}>
+                  {q.label}
+                </SelectItem>
+              ))}
+              <SelectItem value="subtitles">🔗 Subtitles Only (SRT/VTT)</SelectItem>
+            </>
           ) : (
             DEFAULT_QUALITIES.map((q) => (
               <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>

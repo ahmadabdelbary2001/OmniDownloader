@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { PlayCircle, Check, ListChecks, Hash, ArrowRight } from 'lucide-react';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
-import type { PlaylistEntry } from '../../types/downloader';
+import type { PlaylistEntry, QualityOption, VideoQuality } from '../../types/downloader';
+import { formatBytes, formatDuration } from '../../lib/utils';
 
 interface PlaylistSelectorProps {
   entries: PlaylistEntry[];
@@ -12,12 +13,16 @@ interface PlaylistSelectorProps {
   onPreview?: (id: string, title: string) => void;
   requestedVideoId?: string;
   requestedIndex?: number;
+  availableQualities?: QualityOption[];
+  selectedQuality?: VideoQuality;
+  representativeDuration?: number;
 }
 
 type SelectionMode = 'checkbox' | 'range';
 
 export function PlaylistSelector({ 
-  entries, onSelectionChange, onIndicesChange, initialSelection, onPreview, requestedVideoId, requestedIndex 
+  entries, onSelectionChange, onIndicesChange, initialSelection, onPreview, 
+  requestedVideoId, requestedIndex, availableQualities, selectedQuality, representativeDuration 
 }: PlaylistSelectorProps) {
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(initialSelection || new Set());
   const [rangeFrom, setRangeFrom]             = useState('');
@@ -129,10 +134,27 @@ export function PlaylistSelector({
                     </div>
 
                     {/* Index & Title */}
-                    <div className="flex flex-col min-w-0">
-                      <span className={`text-[10px] font-black tracking-widest transition-colors ${selected ? 'text-primary' : 'text-white/20'}`}>
-                        VIDEO #{entry.index.toString().padStart(2, '0')}
-                      </span>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[9px] font-black tracking-widest transition-colors ${selected ? 'text-primary' : 'text-white/20'}`}>
+                          VIDEO #{entry.index.toString().padStart(2, '0')}
+                        </span>
+                        <div className="flex gap-2 items-center">
+                          {entry.duration && (
+                            <span className="text-[9px] font-mono text-white/40">{formatDuration(entry.duration)}</span>
+                          )}
+                          {availableQualities && selectedQuality && entry.duration && representativeDuration && (
+                            <span className="text-[9px] font-mono text-primary/60">
+                              {(() => {
+                                const q = availableQualities.find(q => q.value === selectedQuality);
+                                if (!q || !q.size) return '';
+                                const factor = entry.duration / representativeDuration;
+                                return formatBytes(Math.round(q.size * factor));
+                              })()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <span className={`text-[12px] truncate leading-tight transition-colors ${
                         selected ? 'text-white font-bold' : 'text-white/40 group-hover:text-white/80'
                       }`}>

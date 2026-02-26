@@ -5,8 +5,10 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { MediaPreview } from '../molecules/MediaPreview';
 import { PlaylistSelector } from '../molecules/PlaylistSelector';
+import { SubtitleSelector } from '../molecules/SubtitleSelector';
 import { VideoPlayer } from './VideoPlayer';
 import { cn } from '../../lib/utils';
+import { toast } from 'sonner';
 import type { VideoQuality, MediaMetadata, DownloadOptions } from '../../types/downloader';
 
 interface DirectTabProps {
@@ -34,6 +36,11 @@ export function DirectTab({
 }: DirectTabProps) {
   const [playlistItems, setPlaylistItems] = useState('');
   const [playingVideo, setPlayingVideo]   = useState<{ url: string; title: string } | null>(null);
+  
+  // Subtitle state
+  const [subtitleLang, setSubtitleLang]           = useState('none');
+  const [embedSubtitles, setEmbedSubtitles]       = useState(true);
+  const [showAllTranslations, setShowAllTranslations] = useState(false);
 
   // Auto-select a targeted video when metadata loads
   useEffect(() => {
@@ -50,14 +57,20 @@ export function DirectTab({
   }, [metadata, isPlaylist]);
 
   const handleDownload = () => {
+    if (quality === 'subtitles' && subtitleLang === 'none') {
+      toast.error('Please select a subtitle language!');
+      return;
+    }
     const selectedQ    = metadata?.availableQualities?.find(q => q.value === quality);
     const audioOnlySize = metadata?.availableQualities?.find(q => q.value === 'audio')?.size || 0;
     onDownload(url, {
       playlistItems,
       quality,
       downloadPath: customPath || undefined,
-      estimatedVideoSize: selectedQ ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
-      estimatedAudioSize: audioOnlySize || undefined,
+      subtitleLang: subtitleLang !== 'none' ? subtitleLang : undefined,
+      embedSubtitles: subtitleLang !== 'none' ? embedSubtitles : undefined,
+      estimatedVideoSize: selectedQ && quality !== 'subtitles' ? (selectedQ.size || 0) - (quality === 'audio' ? 0 : audioOnlySize) : undefined,
+      estimatedAudioSize: quality !== 'subtitles' ? (audioOnlySize || undefined) : undefined,
     });
   };
 
@@ -104,7 +117,10 @@ export function DirectTab({
             </SelectTrigger>
             <SelectContent className="bg-card border-border text-foreground">
               {metadata?.availableQualities?.length ? (
-                metadata.availableQualities.map(q => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)
+                <>
+                  {metadata.availableQualities.map(q => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}
+                  <SelectItem value="subtitles">🔗 Subtitles Only (SRT/VTT)</SelectItem>
+                </>
               ) : (
                 <>
                   <SelectItem value="best">🚀 Best Available</SelectItem>
@@ -112,6 +128,7 @@ export function DirectTab({
                   <SelectItem value="720p">✨ 720p HD</SelectItem>
                   <SelectItem value="480p">📱 480p SD</SelectItem>
                   <SelectItem value="audio">🎵 Audio Only (MP3)</SelectItem>
+                  <SelectItem value="subtitles">🔗 Subtitles Only (SRT/VTT)</SelectItem>
                 </>
               )}
             </SelectContent>
@@ -132,6 +149,19 @@ export function DirectTab({
           entries={metadata.entries} 
           onSelectionChange={setPlaylistItems}
           onPreview={(id, title) => setPlayingVideo({ url: id, title })}
+        />
+      )}
+
+      {/* Subtitle selector */}
+      {metadata?.availableSubtitles && metadata.availableSubtitles.length > 0 && (quality !== 'audio') && (
+        <SubtitleSelector
+          subtitles={metadata.availableSubtitles}
+          value={subtitleLang}
+          onValueChange={setSubtitleLang}
+          showAllTranslations={showAllTranslations}
+          onToggleTranslations={setShowAllTranslations}
+          embedSubtitles={embedSubtitles}
+          onToggleEmbed={setEmbedSubtitles}
         />
       )}
 

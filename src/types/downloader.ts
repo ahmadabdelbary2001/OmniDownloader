@@ -49,6 +49,7 @@ export interface PlaylistEntry {
   url: string;
   thumbnail: string;
   index: number;
+  duration?: number; // seconds
 }
 
 export interface SubtitleTrack {
@@ -75,5 +76,9 @@ export interface MediaMetadata {
   availableSubtitles?: SubtitleTrack[];
   requestedVideoId?: string;
   requestedIndex?: number;
+  duration?: number; // seconds (representative or single video)
+  uploader?: string;
+  viewCount?: number;
+  uploadDate?: string;
 }
 

@@ -71,9 +71,14 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
       let availableQualities: any[] = [];
       const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
 
-      if (!isPlaylist && isYouTube) {
+      // For playlists, fetch representative metadata from the first entry if available
+      const representativeUrl = (isPlaylist && json.entries?.[0]) 
+        ? (json.entries[0].url || `https://www.youtube.com/watch?v=${json.entries[0].id}`) 
+        : url;
+
+      if (isYouTube) {
         try {
-          if (addLog) addLog(`🎞️ Fetching available qualities...`);
+          if (addLog) addLog(isPlaylist ? `🎞️ Fetching representative qualities from first video...` : `🎞️ Fetching available qualities...`);
 
           // ── CRITICAL FIX: Attach listeners BEFORE spawn ──────────────────
           const fmtCmd = Command.sidecar("ytdlp", [
@@ -81,7 +86,7 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
             "--dump-single-json",
             "--no-download",
             "--no-check-certificate",
-            url
+            representativeUrl
           ]);
           let fmtStdout = '';
           fmtCmd.stdout.on('data', (d: string) => { fmtStdout += d; });
@@ -132,15 +137,26 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
               ...availableQualities
             ];
 
-            if (addLog) addLog(`✅ Available qualities: ${availableQualities.length - 1} found.`);
+            if (addLog) {
+              const count = availableQualities.length - 1;
+              addLog(isPlaylist 
+                ? `✅ Representative qualities found: ${count}` 
+                : `✅ Available qualities: ${count} found.`);
+            }
+
+            // Also extract subtitles from the representative JSON for the metadata object
+            json.subtitles = fmtJson.subtitles;
+            json.automatic_captions = fmtJson.automatic_captions;
+            json.language = fmtJson.language;
+            json.duration = fmtJson.duration; // Capture representative duration
           }
         } catch (e) {
           if (addLog) addLog(`⚠️ Could not fetch available qualities: ${e}`);
           availableQualities = [
             { value: 'best', label: '🚀 Best Available' },
             { value: '1080p', label: '1080p' },
-            { value: '720p', label: '720p' },
-            { value: '480p', label: '480p' },
+            { value: '720p',  label: '720p' },
+            { value: '480p',  label: '480p' },
             { value: 'audio', label: 'Audio Only' }
           ];
         }
@@ -189,7 +205,10 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
             if (aOrder !== bOrder) return aOrder - bOrder;
             return a.name.localeCompare(b.name);
           }) : undefined;
-        })()
+        })(),
+        uploader: json.uploader,
+        viewCount: json.view_count,
+        uploadDate: json.upload_date,
       };
 
       if (isPlaylist) {
@@ -198,9 +217,12 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
           id: entry.id,
           title: entry.title,
           url: entry.url || entry.webpage_url,
-          thumbnail: entry.thumbnail || (entry.thumbnails?.[0]?.url) || ""
+          thumbnail: entry.thumbnail || (entry.thumbnails?.[0]?.url) || "",
+          duration: entry.duration // Capture per-entry duration
         }));
       }
+
+      metadata.duration = json.duration; // Set root duration (single video or playlist duration if available)
 
       return metadata;
     } catch (error: any) {

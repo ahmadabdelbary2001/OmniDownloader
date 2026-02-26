@@ -9,6 +9,8 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
   
   if (q === 'audio') {
     qualityArgs = "bestaudio/best";
+  } else if (q === 'subtitles') {
+    qualityArgs = "bestaudio/best"; // Placeholder, won't be used due to --skip-download
   } else if (q === 'best') {
     qualityArgs = "bestvideo+bestaudio/best";
   } else {
@@ -24,7 +26,7 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
   const args = [
     "--js-runtimes", "node",
     "--ffmpeg-location", ffmpegPath,
-    "--merge-output-format", "mp4",
+    ...(q !== 'subtitles' ? ["--merge-output-format", "mp4"] : []),
     "--extractor-args", `youtube:player-client=${client}`,
     "--newline",
     "--progress",
@@ -37,6 +39,10 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
     "--continue",
     "--no-overwrites"
   ];
+
+  if (q === 'subtitles') {
+    args.push("--skip-download");
+  }
 
   if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
 
@@ -70,6 +76,8 @@ export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downl
   // Rest of the flags are similar to single download
   if (options.quality === 'audio') {
     args.push('-f', 'ba/b', '-x', '--audio-format', 'mp3');
+  } else if (options.quality === 'subtitles') {
+    args.push('--skip-download');
   } else if (options.quality === 'best') {
     args.push('-f', 'bv+ba/b');
   } else if (options.quality) {
@@ -77,14 +85,13 @@ export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downl
   }
 
   if (options.subtitleLang && options.subtitleLang !== 'none') {
-    args.push('--write-subs');
-    args.push('--sub-langs', options.subtitleLang);
+    args.push('--write-subs', '--write-auto-subs', '--sub-langs', options.subtitleLang, '--convert-subs', 'srt');
     if (options.embedSubtitles) {
       args.push('--embed-subs');
     }
   }
 
-  if (options.quality !== 'audio') {
+  if (options.quality !== 'audio' && options.quality !== 'subtitles') {
     args.push('--merge-output-format', 'mp4');
   }
 
