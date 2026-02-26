@@ -94,6 +94,8 @@ export function useDownloadEngine({
       let detectedPhases = 0;
       let lastPhaseActualSize = 0;
       const totalEstimated = (options.estimatedVideoSize || 0) + (options.estimatedAudioSize || 0);
+      let lastUpdateAt = 0;
+      const THROTTLE_MS = 500; // Update UI every 500ms
 
       cmd.stdout.on('data', (line: string) => {
         if (stopRequestedRef.current) return;
@@ -145,23 +147,29 @@ export function useDownloadEngine({
             }
 
             globalPercent = Math.min(99.9, globalPercent);
-            setProgress(globalPercent);
             
-            if (taskId) {
-              updateTask(taskId, {
-                progress: globalPercent,
-                downloadedBytes: totalDownloaded,
-                totalBytes: totalSize,
-                speed: p.speed,
-                size: p.size, // Still pass it, but DownloadRow prefers totalBytes
-                eta: p.eta
-              });
+            // Only update task and global progress if throttled
+            const now = Date.now();
+            if (now - lastUpdateAt > THROTTLE_MS) {
+              setProgress(globalPercent);
+              if (taskId) {
+                updateTask(taskId, {
+                  progress: globalPercent,
+                  downloadedBytes: totalDownloaded,
+                  totalBytes: totalSize,
+                  speed: p.speed,
+                  size: p.size,
+                  eta: p.eta
+                });
+              }
+              lastUpdateAt = now;
             }
           }
         } else if (cleanLine.includes('[ffmpeg]')) {
            if (taskId) updateTask(taskId, { speed: 'Merging Components...' });
            addLog(cleanLine);
-        } else {
+        } else if (!cleanLine.startsWith('[download]') && !cleanLine.includes('%')) {
+          // Only add to log if it's not a noisy progress line
           addLog(cleanLine);
         }
       });
@@ -217,7 +225,7 @@ export function useDownloadEngine({
 
     if (stopRequestedRef.current) {
       updateTask(taskId, { status: 'paused' });
-      addLog("🛑 Download was manually stopped.");
+      addLog("🛑 Download stopped.");
       return;
     }
 
@@ -225,7 +233,7 @@ export function useDownloadEngine({
       setProgress(100);
       updateTask(taskId, { status: 'completed', progress: 100, speed: undefined, eta: undefined });
       toast.success("Download Finished!");
-      addLog("🎉 Process completed successfully!");
+      addLog("🎉 Completed successfully!");
     } else {
       updateTask(taskId, { status: 'failed' });
       toast.error("Download Failed");

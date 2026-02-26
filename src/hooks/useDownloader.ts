@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { path } from '@tauri-apps/api';
-import { exists, remove, readDir } from '@tauri-apps/plugin-fs';
 import { Command } from '@tauri-apps/plugin-shell';
+import { exists, remove, readDir } from '@tauri-apps/plugin-fs';
 import { toast } from "sonner";
 import { DownloadTask } from '../types/downloader';
 import { useLogs } from './useLogs';
@@ -165,18 +165,23 @@ export function useDownloader() {
       setTasks(prev => prev.filter(t => t.status !== 'completed'));
     }
   };
-
   const revealFolder = async (folderPath?: string) => {
     const targetPath = folderPath || baseDownloadPath;
     if (!targetPath) return toast.error("Download path not set");
 
     try {
       if (!(await exists(targetPath))) return toast.error("Folder does not exist yet");
-      const isWindowsOS = /^[A-Za-z]:[\\\/]/.test(targetPath);
-      if (isWindowsOS) await Command.create('explorer', [targetPath]).execute();
-      else await Command.create('xdg-open', [targetPath]).execute();
+      
+      const isWindows = /^[A-Za-z]:[\\\/]/.test(targetPath);
+      if (isWindows) {
+        await Command.create('explorer', [targetPath]).execute();
+      } else {
+        await Command.create('xdg-open', [targetPath]).execute();
+      }
+      
       addLog(`📁 Opening folder: ${targetPath}`);
     } catch (e) {
+      console.error("Failed to open folder:", e);
       toast.error("Failed to open folder");
     }
   };

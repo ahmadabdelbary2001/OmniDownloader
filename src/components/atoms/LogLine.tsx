@@ -1,3 +1,5 @@
+import React from 'react';
+
 /** Maps log-line prefix emojis to their colour classes. */
 function logLineClass(log: string): string {
   if (log.startsWith('⚠️'))       return 'text-[var(--acc-300)] border-[var(--acc-300)]/30';
@@ -14,10 +16,12 @@ interface LogLineProps {
   log: string;
 }
 
-export function LogLine({ log }: LogLineProps) {
+export const LogLine = React.memo(({ log }: LogLineProps) => {
   return (
     <div className={`py-0.5 border-l-2 pl-3 transition-colors ${logLineClass(log)}`}>
       {log}
     </div>
   );
-}
+});
+
+LogLine.displayName = 'LogLine';

@@ -1,15 +1,28 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+const MAX_LOGS = 500;
+
 export function useLogs() {
   const [logs, setLogs] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom of logs
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (import.meta.env.DEV) {
+      endRef.current?.scrollIntoView({ behavior: "auto" });
+    }
   }, [logs]);
 
   const addLog = useCallback((msg: string) => {
-    setLogs(prev => [...prev, msg].slice(-1000));
+    // We still collect logs in production for background monitoring if needed,
+    // but we keep the buffer small and the operation extremely cheap.
+    setLogs(prev => {
+      const newLogs = [...prev, msg];
+      if (newLogs.length > MAX_LOGS) {
+        return newLogs.slice(newLogs.length - MAX_LOGS);
+      }
+      return newLogs;
+    });
   }, []);
 
   const clearLogs = useCallback(() => {

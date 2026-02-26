@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "../ui/dialog";
 import { Input } from "../ui/input";
@@ -26,12 +26,70 @@ interface SmartAddDialogProps {
   onAddBulk: (items: { url: string, service: any, options: DownloadOptions, title: string, thumbnail?: string }[]) => void;
   defaultPath: string;
   onSelectPath: () => Promise<string | undefined>;
+  initialUrl?: string; // New prop for search integration
 }
 
 export function SmartAddDialog({
-  isOpen, onClose, onAnalyze, onAdd, onAddBulk, defaultPath, onSelectPath
+  isOpen, onClose, onAnalyze, onAdd, onAddBulk, defaultPath, onSelectPath, initialUrl
 }: SmartAddDialogProps) {
   const [url, setUrl]                         = useState("");
+
+  // Sync internal url state with initialUrl and trigger analysis if opening with a prefilled URL
+  useEffect(() => {
+    if (isOpen && initialUrl) {
+      setUrl(initialUrl);
+      
+      // Define a local analysis function that we can trigger immediately
+      const triggerAnalysis = async () => {
+        // Reset previous analysis states
+        setMetadata(null);
+        setEmbedUrl(null);
+        setPreviewUrl(null);
+        setIsAnalyzing(true);
+        
+        try {
+          const result = await onAnalyze(initialUrl);
+          if (result) {
+            if (result.metadata) {
+              setMetadata(result.metadata);
+              // Maintain parity with direct startAnalysis logic for playlists
+              if (result.metadata.isPlaylist) {
+                const { requestedIndex, requestedVideoId, entries } = result.metadata;
+                if (requestedVideoId || requestedIndex) {
+                  const selection = new Set<number>();
+                  if (requestedIndex) selection.add(requestedIndex);
+                  else if (entries) {
+                    const found = entries.find((e: any) => e.id === requestedVideoId);
+                    if (found) selection.add(found.index);
+                  }
+                  setSelectedIndices(selection);
+                  setPlaylistItems(getRangeString(selection));
+                  setIsPlaylistView(false);
+                } else {
+                  const all = new Set<number>();
+                  entries?.forEach((e: any) => all.add(e.index));
+                  setSelectedIndices(all);
+                  setPlaylistItems(getRangeString(all));
+                  setIsPlaylistView(true);
+                }
+              }
+            }
+            if (result.embedUrl) {
+              setEmbedUrl(result.embedUrl);
+              setWgetReferer(result.embedUrl);
+              setWgetFilename("video.mp4");
+            }
+          }
+        } catch (e) {
+          console.error("Auto-analysis error:", e);
+        } finally {
+          setIsAnalyzing(false);
+        }
+      };
+      
+      triggerAnalysis();
+    }
+  }, [isOpen, initialUrl, onAnalyze]);
   const [isAnalyzing, setIsAnalyzing]         = useState(false);
   const [metadata, setMetadata]               = useState<MediaMetadata | null>(null);
   const [quality, setQuality]                 = useState<VideoQuality>("best");

@@ -65,7 +65,7 @@
       "identifier": "fs:allow-read",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     },
@@ -73,7 +73,7 @@
       "identifier": "fs:allow-write",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     },
@@ -81,7 +81,7 @@
       "identifier": "fs:allow-exists",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     },
@@ -89,7 +89,7 @@
       "identifier": "fs:allow-stat",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     },
@@ -97,7 +97,7 @@
       "identifier": "fs:allow-mkdir",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     },
@@ -105,7 +105,7 @@
       "identifier": "fs:allow-read-dir",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     },
@@ -113,7 +113,7 @@
       "identifier": "fs:allow-remove",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "**"
         }
       ]
     }

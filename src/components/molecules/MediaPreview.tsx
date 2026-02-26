@@ -53,6 +53,8 @@ export function MediaPreview({ metadata, url, isPlaylist, onWatch }: MediaPrevie
           src={displayThumbnail}
           className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-500"
           alt="thumb"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
         />
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
           <Button

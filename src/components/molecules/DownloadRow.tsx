@@ -1,3 +1,4 @@
+import React from 'react';
 import { Play, Pause, X, FolderOpen, ArrowUp, ArrowDown } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -16,7 +17,7 @@ interface DownloadRowProps {
   onPreview: (url: string, title: string) => void;
 }
 
-export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFolder, onRemove, onReorder, onPreview }: DownloadRowProps) {
+export const DownloadRow = React.memo(({ task, isQueueActive, onPause, onResume, onOpenFolder, onRemove, onReorder, onPreview }: DownloadRowProps) => {
   return (
     <div className={cn(
       'grid grid-cols-12 gap-1 p-3 border-b border-border hover:bg-muted/30 transition-colors items-center group relative',
@@ -46,7 +47,13 @@ export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFold
           onClick={() => onPreview(task.url, task.title)}
         >
           {task.thumbnail ? (
-            <img src={task.thumbnail} className="w-12 h-7 object-cover rounded-lg bg-muted border border-border group-hover/thumb:border-primary/50 transition-all shadow-md" alt="" />
+            <img 
+              src={task.thumbnail} 
+              className="w-12 h-7 object-cover rounded-lg bg-muted border border-border group-hover/thumb:border-primary/50 transition-all shadow-md" 
+              alt="" 
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
+            />
           ) : (
             <div className="w-12 h-7 rounded-lg bg-muted border border-border flex items-center justify-center group-hover/thumb:border-primary/50 transition-all">
               <Badge variant="outline" className="text-[8px] p-0 px-1 opacity-40">{task.service}</Badge>
@@ -121,4 +128,6 @@ export function DownloadRow({ task, isQueueActive, onPause, onResume, onOpenFold
       </div>
     </div>
   );
-}
+});
+
+DownloadRow.displayName = 'DownloadRow';

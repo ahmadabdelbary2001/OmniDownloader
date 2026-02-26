@@ -35,11 +35,17 @@ export function Downloader() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen]           = useState(false);
   const [filter, setFilter]                   = useState<FilterType>('all');
+  const [prefilledUrl, setPrefilledUrl]       = useState<string | undefined>();
   const [playingVideo, setPlayingVideo]       = useState<{ url: string; title: string } | null>(null);
 
   const filteredTasks = tasks.filter(t => matchesFilter(t, filter));
 
   /* ── handlers ─────────────────────────────────────────────────── */
+
+  const handleOpenAddDialog = () => {
+    setPrefilledUrl(undefined);
+    setIsAddDialogOpen(true);
+  };
 
   const handleSelectDefaultPath = async () => {
     const selected = await open({ directory: true, multiple: false, defaultPath: baseDownloadPath });
@@ -118,7 +124,7 @@ export function Downloader() {
           <div className="h-10 w-px bg-border mx-2" />
 
           <div className="flex items-center gap-1">
-            <Button onClick={() => setIsAddDialogOpen(true)} variant="hero" className="flex-col h-16 border-none gap-1 px-4">
+            <Button onClick={handleOpenAddDialog} variant="hero" className="flex-col h-16 border-none gap-1 px-4">
               <Plus className="w-5 h-5" />
               <span className="text-[10px] font-bold uppercase tracking-widest">Add URL</span>
             </Button>
@@ -136,8 +142,8 @@ export function Downloader() {
                   isSearching={isSearching}
                   searchResults={searchResults}
                   onDownload={(u) => {
-                    startDownload(u, 'ytdlp');
-                    toast.success('Added to manager!');
+                    setPrefilledUrl(u);
+                    setIsAddDialogOpen(true);
                   }}
                 />
               </SheetContent>
@@ -172,17 +178,19 @@ export function Downloader() {
             onOpenFolder={() => revealFolder()}
           />
           <ThemeToggle />
-          <Button
-            onClick={() => setIsLogsOpen(v => !v)}
-            variant="outline"
-            className={`h-10 w-10 p-0 rounded-xl transition-all ${
-              isLogsOpen
-                ? 'bg-[var(--acc-300)] border-[var(--acc-300)] text-white'
-                : 'text-muted-foreground border-border hover:bg-muted hover:text-[var(--acc-300)]'
-            }`}
-          >
-            <Terminal className="w-5 h-5" />
-          </Button>
+          {import.meta.env.DEV && (
+            <Button
+              onClick={() => setIsLogsOpen(v => !v)}
+              variant="outline"
+              className={`h-10 w-10 p-0 rounded-xl transition-all ${
+                isLogsOpen
+                  ? 'bg-[var(--acc-300)] border-[var(--acc-300)] text-white'
+                  : 'text-muted-foreground border-border hover:bg-muted hover:text-[var(--acc-300)]'
+              }`}
+            >
+              <Terminal className="w-5 h-5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -202,7 +210,7 @@ export function Downloader() {
             onPreview={(url, title) => setPlayingVideo({ url, title })}
           />
 
-          {isLogsOpen && (
+          {import.meta.env.DEV && isLogsOpen && (
             <div className="absolute inset-x-0 bottom-0 h-1/3 border-t border-border shadow-2xl z-20">
               <LogViewer
                 logs={logs}
@@ -228,7 +236,11 @@ export function Downloader() {
       {/* ── Dialogs ──────────────────────────────────────────────── */}
       <SmartAddDialog
         isOpen={isAddDialogOpen}
-        onClose={() => setIsAddDialogOpen(false)}
+        onClose={() => {
+          setIsAddDialogOpen(false);
+          setPrefilledUrl(undefined);
+        }}
+        initialUrl={prefilledUrl}
         onAnalyze={analyzeLink}
         onAdd={(u, s, o, t, th) => {
           addTask(u, s, o, t, th).then(id => {
