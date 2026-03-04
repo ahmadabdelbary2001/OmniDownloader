@@ -4,6 +4,13 @@ import { DownloadOptions } from '../types/downloader';
  * Builds the array of arguments for the yt-dlp command based on the provided options.
  */
 export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPath: string, ffmpegPath: string, client: string = 'web_embedded,mweb'): string[] {
+  // ── SUBTITLE FIX: mweb requires GVS PO Token for subtitles, causing them to be discarded.
+  // Override: if subtitles are requested, force ios/tv_embedded clients which:
+  //   - Don't require GVS PO Token
+  //   - Are NOT affected by SABR streaming (gives direct download URLs)
+  //   - Have full access to auto-generated captions
+  const hasSubtitleRequest = options.subtitleLang && options.subtitleLang !== 'none';
+  const effectiveClient = hasSubtitleRequest ? 'web,tv_embedded' : client;
   let qualityArgs: string;
   const q = options.quality || 'best';
   
@@ -27,7 +34,7 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
     "--js-runtimes", "node",
     "--ffmpeg-location", ffmpegPath,
     ...(q !== 'subtitles' ? ["--merge-output-format", "mp4"] : []),
-    "--extractor-args", `youtube:player-client=${client}`,
+    "--extractor-args", `youtube:player-client=${effectiveClient}`,
     "--newline",
     "--progress",
     "--no-colors",
@@ -47,7 +54,12 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
   if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
 
   if (options.subtitleLang && options.subtitleLang !== 'none' && q !== 'audio') {
-    args.push("--write-subs", "--write-auto-subs", "--sub-langs", options.subtitleLang, "--convert-subs", "srt");
+    args.push(
+      "--write-subs",
+      "--write-auto-subs",
+      "--sub-langs", options.subtitleLang,
+      "--convert-subs", "srt"
+    );
     if (options.embedSubtitles) {
       args.push("--embed-subs");
     }

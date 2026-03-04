@@ -9,7 +9,7 @@ import { SmartAddDialog } from './SmartAddDialog';
 import { SearchTab } from './SearchTab';
 import { LogViewer } from './LogViewer';
 import { Button } from '../ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '../ui/sheet';
 import { ThemeToggle } from '../atoms/ThemeToggle';
 import { StoragePicker } from '../molecules/StoragePicker';
 import { FilterSidebar, matchesFilter } from '../molecules/FilterSidebar';
@@ -137,6 +137,10 @@ export function Downloader() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="h-[80vh] bg-background border-border p-0">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>YouTube Search</SheetTitle>
+                  <SheetDescription>Search for videos, shorts, or playlists directly.</SheetDescription>
+                </SheetHeader>
                 <SearchTab
                   onSearch={handleSearch}
                   isSearching={isSearching}

@@ -80,5 +80,6 @@ export interface MediaMetadata {
   uploader?: string;
   viewCount?: number;
   uploadDate?: string;
+  isShort?: boolean;
 }
 

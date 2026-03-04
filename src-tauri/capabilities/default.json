@@ -38,6 +38,12 @@
           "args": true
         },
         {
+          "name": "ffmpeg",
+          "cmd": "ffmpeg",
+          "sidecar": true,
+          "args": true
+        },
+        {
           "name": "taskkill",
           "cmd": "taskkill",
           "args": true
@@ -58,6 +64,12 @@
           "cmd": "wget",
           "sidecar": true,
           "args": true
+        },
+        {
+          "name": "ffmpeg",
+          "cmd": "ffmpeg",
+          "sidecar": true,
+          "args": true
         }
       ]
     },
@@ -75,6 +87,15 @@
         {
           "path": "**"
         }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "**" }
       ]
     },
     {

@@ -1,7 +1,10 @@
 import { useCallback } from 'react';
 import { Command } from '@tauri-apps/plugin-shell';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { downloadDir } from '@tauri-apps/api/path';
 import { MediaMetadata } from '../types/downloader';
 import { formatBytes } from '../lib/utils';
+import { useYouTubeApi } from './useYouTubeApi';
 
 interface UseMetadataOptions {
   addLog?: (msg: string) => void;
@@ -11,11 +14,39 @@ interface UseMetadataOptions {
 }
 
 export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProcessesRef }: UseMetadataOptions = {}) {
+  const { fetchVideoMetadata, extractVideoInfo } = useYouTubeApi();
 
   const getMediaMetadata = useCallback(async (url: string): Promise<MediaMetadata | null> => {
     if (!url) return null;
     if (setIsLoading) setIsLoading(true);
-    if (addLog) addLog(`🔍 Fetching metadata for: ${url}`);
+    
+    // ── STEP 0: Fast Meta Fetch via YouTube API (if applicable) ──────────────────
+    let fastMeta: Partial<MediaMetadata> | null = null;
+    const { id: vId, isShort } = extractVideoInfo(url);
+    const isYouTube = vId !== null;
+
+    if (isYouTube && vId) {
+      if (addLog) addLog(`⚡ [API] Fetching fast metadata for video: ${vId}...`);
+      try {
+        const apiMeta = await fetchVideoMetadata(url);
+        if (apiMeta) {
+          fastMeta = {
+            id: apiMeta.id,
+            title: apiMeta.title,
+            thumbnail: apiMeta.thumbnail,
+            uploader: apiMeta.channelTitle,
+            viewCount: apiMeta.viewCount,
+            duration: apiMeta.durationSeconds,
+            isPlaylist: false
+          };
+          if (addLog) addLog(`✅ [API] Found: ${apiMeta.title}`);
+        }
+      } catch (e) {
+        if (addLog) addLog(`ℹ️ [API] Fast metadata fetch failed, proceeding with yt-dlp...`);
+      }
+    }
+
+    if (addLog) addLog(`🔍 Deep analyzing link: ${url}`);
 
     let requestedVideoId: string | undefined;
     let requestedIndex: number | undefined;
@@ -69,7 +100,6 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
       const isPlaylist = (json._type === 'playlist' || !!json.entries || url.includes('list=') || url.startsWith('PL'));
 
       let availableQualities: any[] = [];
-      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
 
       // For playlists, fetch representative metadata from the first entry if available
       const representativeUrl = (isPlaylist && json.entries?.[0]) 
@@ -100,6 +130,19 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
 
           if (fmtStdout) {
             const fmtJson = JSON.parse(fmtStdout);
+
+            // ── SAVE RAW JSON for user exploration ───────────────────
+            try {
+              const dDir = await downloadDir();
+              const videoId = fmtJson.id || 'unknown';
+              const sanitizedId = videoId.replace(/[^a-zA-Z0-9_-]/g, '_');
+              const dumpPath = `${dDir}yt-dlp-metadata-${sanitizedId}.json`;
+              await writeTextFile(dumpPath, JSON.stringify(fmtJson, null, 2));
+              if (addLog) addLog(`📄 [JSON] Saved: yt-dlp-metadata-${sanitizedId}.json → ${dDir}`);
+            } catch (dumpErr) {
+              if (addLog) addLog(`⚠️ [JSON] Could not save metadata dump: ${dumpErr}`);
+            }
+
             const formats: any[] = fmtJson.formats || [];
 
             const audioFormats = formats.filter(f => f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'));
@@ -149,6 +192,40 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
             json.automatic_captions = fmtJson.automatic_captions;
             json.language = fmtJson.language;
             json.duration = fmtJson.duration; // Capture representative duration
+
+            // ── YOUTUBE API ENRICHMENT: Fetch caption tracks via YouTube Data API v3
+            // This catches tracks that yt-dlp misses due to PO Token restrictions.
+            try {
+              const ytApiKey = localStorage.getItem('yt_api_key') || import.meta.env.VITE_YOUTUBE_API_KEY;
+              const videoId = fmtJson.id;
+              if (videoId && ytApiKey) {
+                const apiBase = import.meta.env.VITE_YOUTUBE_API_BASE || 'https://www.googleapis.com/youtube/v3';
+                const params = new URLSearchParams({ part: 'snippet', videoId, key: ytApiKey });
+                const res = await fetch(`${apiBase}/captions?${params}`);
+                if (res.ok) {
+                  const captionData = await res.json();
+                  const apiTracks = captionData.items || [];
+                  if (apiTracks.length > 0) {
+                    // Merge API tracks into the subtitles object for yt-dlp to use as reference
+                    if (!json.subtitles) json.subtitles = {};
+                    for (const track of apiTracks) {
+                      const lang = track.snippet?.language;
+                      const kind = track.snippet?.trackKind; // 'standard', 'asr', 'forced'
+                      if (lang && !json.subtitles[lang]) {
+                        // Mark as API-sourced so we know it might need yt-dlp's ios client
+                        json.subtitles[lang] = [{ 
+                          ext: 'srt', 
+                          name: track.snippet?.name || lang,
+                          _source: 'youtube_api',
+                          _kind: kind
+                        }];
+                      }
+                    }
+                    if (addLog) addLog(`📡 [API] Found ${apiTracks.length} caption track(s) via YouTube API`);
+                  }
+                }
+              }
+            } catch (apiErr) {}
           }
         } catch (e) {
           if (addLog) addLog(`⚠️ Could not fetch available qualities: ${e}`);
@@ -162,76 +239,72 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         }
       }
 
-      const metadata: MediaMetadata = {
-        id: json.id,
-        title: json.title || (isPlaylist ? "Playlist" : "Unknown Title"),
-        thumbnail: json.thumbnail || (json.thumbnails?.[0]?.url) || (json.entries?.[0]?.thumbnail) || "",
-        isPlaylist,
-        formats: json.formats || [],
-        availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
-        requestedIndex: requestedIndex || json.playlist_index,
-        requestedVideoId: requestedVideoId || (json._type === 'url' ? json.id : undefined),
-        availableSubtitles: (() => {
-          const subs: any[] = [];
-          const manualSubs = json.subtitles || {};
-          const autoSubs = json.automatic_captions || {};
-          
-          const videoLang = json.language || 'en';
+      if (setIsLoading) setIsLoading(false);
 
-          for (const [lang, formats] of Object.entries(manualSubs)) {
-            const typedFormats = formats as any[];
-            const name = typedFormats.find(f => f.name)?.name || lang;
-            subs.push({ lang, name, type: 'manual' });
-          }
+      // ── Combine everything into the final result ───────────────────────
+      const manualSubs = json.subtitles || {};
+      const autoSubs = json.automatic_captions || {};
+      const videoLang = json.language || 'en';
 
-          for (const [lang, formats] of Object.entries(autoSubs)) {
-            if (subs.find(s => s.lang === lang)) continue;
-            const typedFormats = formats as any[];
-            const name = typedFormats.find(f => f.name)?.name || lang;
-            const isOriginal = lang.toLowerCase() === videoLang.toLowerCase() || lang.split('-')[0] === videoLang.split('-')[0];
-            
-            subs.push({ 
-              lang, 
-              name: `${name}${isOriginal ? ' (Original Auto)' : ' (Auto Translate)'}`, 
-              type: isOriginal ? 'auto' : 'translated',
-              isOriginal
-            });
-          }
-
-          return subs.length > 0 ? subs.sort((a, b) => {
-            const order = { 'manual': 0, 'auto': 1, 'translated': 2 };
-            const aOrder = order[a.type as keyof typeof order] ?? 3;
-            const bOrder = order[b.type as keyof typeof order] ?? 3;
-            if (aOrder !== bOrder) return aOrder - bOrder;
-            return a.name.localeCompare(b.name);
-          }) : undefined;
-        })(),
-        uploader: json.uploader,
-        viewCount: json.view_count,
-        uploadDate: json.upload_date,
-      };
-
-      if (isPlaylist) {
-        metadata.entries = (json.entries || []).map((entry: any, idx: number) => ({
-          index: entry.playlist_index || entry.index || (idx + 1),
-          id: entry.id,
-          title: entry.title,
-          url: entry.url || entry.webpage_url,
-          thumbnail: entry.thumbnail || (entry.thumbnails?.[0]?.url) || "",
-          duration: entry.duration // Capture per-entry duration
-        }));
+      const subs: any[] = [];
+      for (const [lang, formats] of Object.entries(manualSubs)) {
+        const typedFormats = formats as any[];
+        const name = typedFormats.find(f => f.name)?.name || lang;
+        subs.push({ lang, name, type: 'manual' });
       }
 
-      metadata.duration = json.duration; // Set root duration (single video or playlist duration if available)
+      for (const [lang, formats] of Object.entries(autoSubs)) {
+        if (subs.find(s => s.lang === lang)) continue;
+        const typedFormats = formats as any[];
+        const name = typedFormats.find(f => f.name)?.name || lang;
+        const isOriginal = lang.toLowerCase() === videoLang.toLowerCase() || lang.split('-')[0] === videoLang.split('-')[0];
+        subs.push({ 
+          lang, 
+          name: `${name}${isOriginal ? ' (Original Auto)' : ' (Auto Translate)'}`, 
+          type: isOriginal ? 'auto' : 'translated',
+          isOriginal
+        });
+      }
 
-      return metadata;
+      const sortedSubtitles = subs.sort((a, b) => {
+        const order = { 'manual': 0, 'auto': 1, 'translated': 2 };
+        const aOrder = order[a.type as keyof typeof order] ?? 3;
+        const bOrder = order[b.type as keyof typeof order] ?? 3;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.name.localeCompare(b.name);
+      });
+
+      return {
+        id: json.id || fastMeta?.id,
+        title: json.title || fastMeta?.title || (isPlaylist ? 'Playlist' : 'Unknown Video'),
+        thumbnail: json.thumbnail || fastMeta?.thumbnail || (json.entries?.[0]?.thumbnail) || '',
+        isPlaylist,
+        isShort: isShort || url.includes('/shorts/'),
+        entries: json.entries?.map((e: any, idx: number) => ({
+          id: e.id,
+          title: e.title,
+          url: e.url || `https://www.youtube.com/watch?v=${e.id}`,
+          thumbnail: e.thumbnail || '',
+          index: idx + 1,
+          duration: e.duration
+        })),
+        formats: json.formats || [],
+        availableQualities: availableQualities.length > 0 ? availableQualities : undefined,
+        availableSubtitles: sortedSubtitles.length > 0 ? sortedSubtitles : undefined,
+        requestedVideoId: requestedVideoId || (json._type === 'url' ? json.id : undefined),
+        requestedIndex: requestedIndex || json.playlist_index,
+        duration: json.duration || fastMeta?.duration,
+        uploader: json.uploader || fastMeta?.uploader,
+        viewCount: json.view_count || fastMeta?.viewCount,
+        uploadDate: json.upload_date
+      };
     } catch (error: any) {
       if (addLog) addLog(`❌ Metadata error: ${error.message || error}`);
       return null;
     } finally {
       if (setIsLoading) setIsLoading(false);
     }
-  }, [addLog, setIsLoading, stopRequestedRef, activeProcessesRef]);
+  }, [addLog, setIsLoading, stopRequestedRef, activeProcessesRef, extractVideoInfo, fetchVideoMetadata]);
 
   return { getMediaMetadata };
 }
