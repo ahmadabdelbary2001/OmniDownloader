@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OmniDownloader Helper</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 320px;
+      background: #0F0B1A;
+      color: #E8E0F5;
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    /* ── Aurora glows ── */
+    .aurora {
+      position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+    }
+    .aurora::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: -40px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: #7B68A0;
+      opacity: 0.13;
+      filter: blur(70px);
+    }
+    .aurora::after {
+      content: '';
+      position: absolute;
+      bottom: -40px; right: -40px;
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      background: #7ECAC4;
+      opacity: 0.09;
+      filter: blur(60px);
+    }
+
+    .container {
+      position: relative; z-index: 1;
+      padding: 18px 18px 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    /* ── Header ── */
+    .header { display: flex; flex-direction: column; gap: 3px; }
+    .header-top { display: flex; align-items: center; gap: 12px; }
+    .logo-wrap {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(123,104,160,0.3);
+    }
+    .logo-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .title-block { display: flex; flex-direction: column; line-height: 1; }
+    .title-omni {
+      font-size: 20px; font-weight: 900;
+      letter-spacing: -0.04em;
+      color: #9580C0;
+    }
+    .title-down {
+      font-size: 11px; font-weight: 800;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #E8E0F5;
+    }
+    .header-version {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.3em;
+      text-transform: uppercase; color: rgba(200,190,230,0.35);
+      padding-left: 52px; /* ~logo width + gap */
+    }
+
+    /* ── Card ── */
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(149,128,192,0.15);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+    .status-row { display: flex; align-items: center; justify-content: space-between; }
+    .status-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: rgba(200,190,230,0.45);
+    }
+    .status-badge { display: flex; align-items: center; gap: 6px; }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #444; transition: background 0.3s, box-shadow 0.3s;
+    }
+    .dot.online  { background: #7ECAC4; box-shadow: 0 0 6px #7ECAC4; }
+    .dot.offline { background: #ff4d6d; box-shadow: 0 0 6px #ff4d6d; }
+    #statusText {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(200,190,230,0.45); transition: color 0.3s;
+    }
+    #statusText.online  { color: #7ECAC4; }
+    #statusText.offline { color: #ff4d6d; }
+    .url-display {
+      font-size: 10px; color: rgba(200,190,230,0.30); margin-top: 9px;
+      font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── Button ── */
+    #downloadBtn {
+      width: 100%;
+      background: linear-gradient(135deg, #7B68A0, #5E4F80);
+      border: 1px solid rgba(149,128,192,0.3);
+      color: #fff;
+      padding: 11px 16px;
+      border-radius: 12px;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 20px rgba(123,104,160,0.25);
+    }
+    #downloadBtn:hover {
+      background: linear-gradient(135deg, #9580C0, #7B68A0);
+      box-shadow: 0 6px 28px rgba(149,128,192,0.45);
+      transform: translateY(-1px);
+    }
+    #downloadBtn:active { transform: translateY(0); }
+    #downloadBtn.success {
+      background: linear-gradient(135deg, #7ECAC4, #5BA8A2);
+      border-color: rgba(126,202,196,0.4);
+      box-shadow: 0 4px 20px rgba(126,202,196,0.3);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.22em;
+      text-transform: uppercase; color: rgba(149,128,192,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="aurora"></div>
+
+  <div class="container">
+    <!-- Header (matches Downloader.tsx app header) -->
+    <div class="header">
+      <div class="header-top">
+        <div class="logo-wrap">
+          <img src="icons/icon48.png" alt="OmniDownloader" />
+        </div>
+        <div class="title-block">
+          <span class="title-omni">OMNI</span>
+          <span class="title-down">Downloader</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Card -->
+    <div class="card">
+      <div class="status-row">
+        <span class="status-label">App Status</span>
+        <div class="status-badge">
+          <div class="dot" id="statusDot"></div>
+          <span id="statusText">Checking…</span>
+        </div>
+      </div>
+      <div class="url-display" id="currentUrl">—</div>
+    </div>
+
+    <!-- Main Button -->
+    <button id="downloadBtn">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12M7 11l5 5 5-5M5 21h14"/>
+      </svg>
+      Send to OmniDownloader
+    </button>
+
+    <!-- Footer -->
+    <div class="footer">Lavender Tech · v2.4</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

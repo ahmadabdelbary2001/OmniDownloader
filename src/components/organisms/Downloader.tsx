@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Terminal, Search, Plus, Pause, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { open, ask } from '@tauri-apps/plugin-dialog';
@@ -37,6 +37,18 @@ export function Downloader() {
   const [filter, setFilter]                   = useState<FilterType>('all');
   const [prefilledUrl, setPrefilledUrl]       = useState<string | undefined>();
   const [playingVideo, setPlayingVideo]       = useState<{ url: string; title: string } | null>(null);
+
+  // Listen for URLs sent by the browser extension
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<{ url: string; title?: string; auto_start?: boolean }>('omni://add-url', (event) => {
+        setPrefilledUrl(event.payload.url);
+        setIsAddDialogOpen(true);
+      }).then((fn) => { unlisten = fn; });
+    });
+    return () => { if (unlisten) unlisten(); };
+  }, []);
 
   const filteredTasks = tasks.filter(t => matchesFilter(t, filter));
 
@@ -118,7 +130,7 @@ export function Downloader() {
                 <span className="text-foreground text-sm tracking-[0.2em]">DOWNLOADER</span>
               </h1>
             </div>
-            <p className="text-[9px] uppercase font-bold tracking-[3px] text-muted-foreground mt-1 ml-14">v2.3 Lavender Tech</p>
+            <p className="text-[9px] uppercase font-bold tracking-[3px] text-muted-foreground mt-1 ml-14">v2.4 Lavender Tech</p>
           </div>
 
           <div className="h-10 w-px bg-border mx-2" />
