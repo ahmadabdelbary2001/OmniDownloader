@@ -77,33 +77,8 @@
       padding-left: 52px; /* ~logo width + gap */
     }
 
-    /* ── Card ── */
-    .card {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(149,128,192,0.15);
-      border-radius: 14px;
-      padding: 12px 14px;
-    }
-    .status-row { display: flex; align-items: center; justify-content: space-between; }
-    .status-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
-      text-transform: uppercase; color: rgba(200,190,230,0.45);
-    }
-    .status-badge { display: flex; align-items: center; gap: 6px; }
-    .dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: #444; transition: background 0.3s, box-shadow 0.3s;
-    }
-    .dot.online  { background: #7ECAC4; box-shadow: 0 0 6px #7ECAC4; }
-    .dot.offline { background: #ff4d6d; box-shadow: 0 0 6px #ff4d6d; }
-    #statusText {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; color: rgba(200,190,230,0.45); transition: color 0.3s;
-    }
-    #statusText.online  { color: #7ECAC4; }
-    #statusText.offline { color: #ff4d6d; }
     .url-display {
-      font-size: 10px; color: rgba(200,190,230,0.30); margin-top: 9px;
+      font-size: 10px; color: rgba(200,190,230,0.28); margin-bottom: 2px;
       font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
@@ -162,17 +137,8 @@
       </div>
     </div>
 
-    <!-- Status Card -->
-    <div class="card">
-      <div class="status-row">
-        <span class="status-label">App Status</span>
-        <div class="status-badge">
-          <div class="dot" id="statusDot"></div>
-          <span id="statusText">Checking…</span>
-        </div>
-      </div>
-      <div class="url-display" id="currentUrl">—</div>
-    </div>
+    <!-- Current URL (subtle, above button) -->
+    <div class="url-display" id="currentUrl"></div>
 
     <!-- Main Button -->
     <button id="downloadBtn">
