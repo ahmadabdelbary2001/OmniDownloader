@@ -3,8 +3,8 @@ import { Command } from '@tauri-apps/plugin-shell';
 import { toast } from "sonner";
 import { SearchResult } from '../types/downloader';
 
-const YT_API_BASE = import.meta.env.VITE_YOUTUBE_API_BASE || 'https://www.googleapis.com/youtube/v3';
-const DEFAULT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY || 'AIzaSyCLYfQwBeUVG2V2be_4G5MLvBbpXXc2fAM';
+const YT_API_BASE = import.meta.env.VITE_YOUTUBE_API_BASE;
+const DEFAULT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

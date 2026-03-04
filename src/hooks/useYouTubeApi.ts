@@ -9,11 +9,10 @@
  * This hook provides:
  *   1. Fetching rich video metadata (title, stats, channel, duration)
  *   2. Listing available caption tracks (language, name, trackKind)
+ *   3. Fetching playlist metadata and items (fast discovery)
  *
  * The API key is stored in localStorage (configurable via settings).
  * The default fallback key is from app/src/pages/YouTube.jsx.
- *
- * Actual caption download is handled by yt-dlp (ios client strategy).
  */
 
 import { useState, useCallback } from 'react';
@@ -74,14 +73,15 @@ export function useYouTubeApi() {
   /**
    * Extracts the video ID from a YouTube URL and identifies if it's a Short.
    */
-  const extractVideoInfo = useCallback((url: string): { id: string | null; isShort: boolean } => {
+  const extractVideoInfo = useCallback((url: string): { id: string | null; isShort: boolean; listId: string | null } => {
     try {
       const u = new URL(url);
+      const listId = u.searchParams.get('list');
       
       // Shorts handling: https://www.youtube.com/shorts/ID
       if (u.pathname.includes('/shorts/')) {
         const id = u.pathname.split('/shorts/')[1].split('/')[0];
-        return { id, isShort: true };
+        return { id, isShort: true, listId };
       }
 
       // Regular YouTube: https://www.youtube.com/watch?v=ID
@@ -89,29 +89,24 @@ export function useYouTubeApi() {
         const id = u.hostname.includes('youtu.be') 
           ? u.pathname.slice(1) 
           : u.searchParams.get('v');
-        return { id, isShort: false };
+        return { id, isShort: false, listId };
       }
       
-      return { id: null, isShort: false };
+      return { id: null, isShort: false, listId };
     } catch { 
-      return { id: null, isShort: false }; 
+      return { id: null, isShort: false, listId: null }; 
     }
   }, []);
 
   /**
-   * Alias for backward compatibility if needed, but extractVideoInfo is preferred.
+   * Alias for backward compatibility.
    */
   const extractVideoId = useCallback((url: string): string | null => {
     return extractVideoInfo(url).id;
   }, [extractVideoInfo]);
 
   /**
-   * Fetches rich metadata for a video using YouTube Data API v3.
-   * Includes: title, stats, channel, duration, tags, language.
-   *
-   * NOTE: This uses the public API key (no OAuth), so only publicly
-   * available metadata is returned. Caption content itself cannot be
-   * downloaded via API without OAuth + ownership.
+   * Fetches rich metadata for a video.
    */
   const fetchVideoMetadata = useCallback(async (
     url: string
@@ -167,14 +162,88 @@ export function useYouTubeApi() {
   }, [apiKey, extractVideoId]);
 
   /**
+   * Fetches metadata for a playlist.
+   */
+  const fetchPlaylistMetadata = useCallback(async (
+    listId: string
+  ) => {
+    try {
+      const params = new URLSearchParams({
+        part: 'snippet,contentDetails',
+        id: listId,
+        key: apiKey,
+      });
+
+      const res = await fetch(`${API_BASE}/playlists?${params}`);
+      if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+
+      const data = await res.json();
+      const item = data.items?.[0];
+      if (!item) return null;
+
+      const snippet = item.snippet || {};
+      const best = snippet.thumbnails?.maxres?.url
+        || snippet.thumbnails?.high?.url
+        || snippet.thumbnails?.medium?.url
+        || snippet.thumbnails?.default?.url
+        || '';
+
+      return {
+        id: listId,
+        title: snippet.title || '',
+        thumbnail: best,
+        channelTitle: snippet.channelTitle || '',
+        itemCount: item.contentDetails?.itemCount || 0
+      };
+    } catch (e) {
+      console.warn('[useYouTubeApi] fetchPlaylistMetadata failed:', e);
+      return null;
+    }
+  }, [apiKey]);
+
+  /**
+   * Fetches items for a playlist.
+   */
+  const fetchPlaylistItems = useCallback(async (
+    listId: string,
+    maxResults = 50
+  ) => {
+    try {
+      const params = new URLSearchParams({
+        part: 'snippet,contentDetails',
+        playlistId: listId,
+        maxResults: String(maxResults),
+        key: apiKey,
+      });
+
+      const res = await fetch(`${API_BASE}/playlistItems?${params}`);
+      if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+
+      const data = await res.json();
+      return (data.items || []).map((item: any, idx: number) => {
+        const snippet = item.snippet || {};
+        const vId = snippet.resourceId?.videoId;
+        const best = snippet.thumbnails?.high?.url
+          || snippet.thumbnails?.medium?.url
+          || snippet.thumbnails?.default?.url
+          || '';
+
+        return {
+          id: vId,
+          title: snippet.title || '',
+          url: `https://www.youtube.com/watch?v=${vId}`,
+          thumbnail: best,
+          index: idx + 1,
+        };
+      });
+    } catch (e) {
+      console.warn('[useYouTubeApi] fetchPlaylistItems failed:', e);
+      return [];
+    }
+  }, [apiKey]);
+
+  /**
    * Lists available caption/subtitle tracks for a video.
-   *
-   * ⚠️ IMPORTANT LIMITATION:
-   * - `captions.list` with an API key (no OAuth) only returns captions
-   *   if the video owner has made them public OR if the video has auto-captions.
-   * - Caption content (actual .srt/.vtt text) CANNOT be downloaded via this API
-   *   without OAuth 2.0 and video ownership.
-   * - Use this to show which languages EXIST; yt-dlp handles the actual download.
    */
   const listCaptionTracks = useCallback(async (
     url: string
@@ -190,12 +259,7 @@ export function useYouTubeApi() {
       });
 
       const res = await fetch(`${API_BASE}/captions?${params}`);
-
-      // 403 is common for private/restricted captions — not an app error
-      if (res.status === 403) {
-        console.warn('[useYouTubeApi] Caption list forbidden (need OAuth for this video)');
-        return [];
-      }
+      if (res.status === 403) return [];
       if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
 
       const data = await res.json();
@@ -247,6 +311,8 @@ export function useYouTubeApi() {
     extractVideoId,
     extractVideoInfo,
     fetchVideoMetadata,
+    fetchPlaylistMetadata,
+    fetchPlaylistItems,
     listCaptionTracks,
     searchVideos,
   };

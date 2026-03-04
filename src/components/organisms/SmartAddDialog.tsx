@@ -7,6 +7,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Loader2, Folder, X, Download } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { analyzeLinkType } from "../../lib/linkAnalyzer";
+import { resolveEmbedUrl } from "../../lib/youtube";
 
 // Molecules
 import { MediaPreview } from "../molecules/MediaPreview";
@@ -329,8 +330,11 @@ export function SmartAddDialog({
                   metadata={metadata}
                   url={url}
                   isPlaylist={metadata.isPlaylist}
-                  onWatch={(watchUrl, _title) => setPreviewUrl(isYouTubeUrl(url) ? `https://www.youtube.com/embed/${watchUrl}?autoplay=1` : watchUrl)
-                  }
+                  onWatch={(watchUrl) => {
+                    const embed = resolveEmbedUrl(watchUrl);
+                    if (embed) setPreviewUrl(embed);
+                    else setPreviewUrl(watchUrl);
+                  }}
                 />
 
                 {/* Playlist toggle */}
