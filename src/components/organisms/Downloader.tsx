@@ -36,15 +36,56 @@ export function Downloader() {
   const [isLogsOpen, setIsLogsOpen]           = useState(false);
   const [filter, setFilter]                   = useState<FilterType>('all');
   const [prefilledUrl, setPrefilledUrl]       = useState<string | undefined>();
+  const [prefilledOptions, setPrefilledOptions] = useState<{
+    quality?: string;
+    subtitle_lang?: string;
+    download_path?: string;
+  } | undefined>();
   const [playingVideo, setPlayingVideo]       = useState<{ url: string; title: string } | null>(null);
 
   // Listen for URLs sent by the browser extension
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen<{ url: string; title?: string; auto_start?: boolean }>('omni://add-url', (event) => {
-        setPrefilledUrl(event.payload.url);
-        setIsAddDialogOpen(true);
+      listen<{
+        url: string;
+        title?: string;
+        auto_start?: boolean;
+        quality?: string;
+        subtitle_lang?: string;
+        download_path?: string;
+        instant?: boolean;
+      }>('omni://add-url', (event) => {
+        const { url, quality, subtitle_lang, download_path, instant } = event.payload;
+
+        setPrefilledUrl(url);
+        setPrefilledOptions({
+          quality,
+          subtitle_lang,
+          download_path,
+        });
+
+        if (instant) {
+          // Instant background download
+          analyzeLink(url).then(result => {
+            if (!result?.metadata) return;
+            const meta = result.metadata;
+            import('../../lib/linkAnalyzer').then(({ analyzeLinkType }) => {
+                const info = analyzeLinkType(url);
+                const options = {
+                    quality: (quality || 'best') as any,
+                    subtitleLang: subtitle_lang || undefined,
+                    downloadPath: download_path || baseDownloadPath,
+                };
+                addTask(url, info.service, options, meta.title, meta.thumbnail).then(id => {
+                    startDownload(url, info.service, options, id);
+                    toast.success(`Background download started: ${meta.title}`);
+                });
+            });
+          });
+        } else {
+          setIsAddDialogOpen(true);
+        }
       }).then((fn) => { unlisten = fn; });
     });
     return () => { if (unlisten) unlisten(); };
@@ -255,8 +296,10 @@ export function Downloader() {
         onClose={() => {
           setIsAddDialogOpen(false);
           setPrefilledUrl(undefined);
+          setPrefilledOptions(undefined);
         }}
         initialUrl={prefilledUrl}
+        initialOptions={prefilledOptions}
         onAnalyze={analyzeLink}
         onAdd={(u, s, o, t, th) => {
           addTask(u, s, o, t, th).then(id => {

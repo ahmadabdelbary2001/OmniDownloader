@@ -37,6 +37,17 @@ export function useDownloadPath({ addLog }: UseDownloadPathOptions = {}) {
     localStorage.setItem('omni_base_path', newPath);
   }, []);
 
+  // Sync with extension backend whenever path changes
+  useEffect(() => {
+    if (!baseDownloadPath) return;
+    
+    fetch('http://127.0.0.1:7433/set-defaults', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_download_path: baseDownloadPath })
+    }).catch(e => console.error("Sync to extension backend failed:", e));
+  }, [baseDownloadPath]);
+
   return {
     baseDownloadPath,
     updateBaseDownloadPath

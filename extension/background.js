@@ -13,14 +13,25 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'sendToOmni') {
     const url = info.linkUrl || info.srcUrl || info.pageUrl;
-    sendToApp(url, tab?.title);
+    
+    // Load saved options to use for context menu send
+    chrome.storage.sync.get([OMNI_CONFIG.optionsKey], (data) => {
+      const options = data[OMNI_CONFIG.optionsKey] || OMNI_CONFIG.defaults;
+      sendToApp(url, tab?.title, options);
+    });
   }
 });
 
 // ── Message relay (popup / content → background → app) ────────────────────
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'sendToApp') {
-    sendToApp(request.url, request.title)
+    const options = {
+      quality: request.quality,
+      subtitle: request.subtitle,
+      download_path: request.download_path
+    };
+    
+    sendToApp(request.url, request.title, options)
       .then(result  => sendResponse(result))
       .catch(err    => sendResponse({ status: 'error', message: err.message }));
     return true; // keep channel open for async response
@@ -43,12 +54,21 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // ── Send URL to app ────────────────────────────────────────────────────────
-async function sendToApp(url, title) {
+async function sendToApp(url, title, options = {}) {
+  const payload = {
+    url,
+    title: title || url,
+    quality: options.quality,
+    subtitle_lang: options.subtitle,
+    download_path: options.download_path
+  };
+
   const res = await fetch(OMNI_CONFIG.endpoints.add, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ url, title: title || url }),
+    body:    JSON.stringify(payload),
   });
+  
   if (!res.ok) throw new Error(`Server responded with ${res.status}`);
   return res.json();
 }

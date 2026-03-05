@@ -27,13 +27,27 @@ interface SmartAddDialogProps {
   onAddBulk: (items: { url: string, service: any, options: DownloadOptions, title: string, thumbnail?: string }[]) => void;
   defaultPath: string;
   onSelectPath: () => Promise<string | undefined>;
-  initialUrl?: string; // New prop for search integration
+  initialUrl?: string;
+  initialOptions?: {
+    quality?: string;
+    subtitle_lang?: string;
+    download_path?: string;
+  };
 }
 
 export function SmartAddDialog({
-  isOpen, onClose, onAnalyze, onAdd, onAddBulk, defaultPath, onSelectPath, initialUrl
+  isOpen, onClose, onAnalyze, onAdd, onAddBulk, defaultPath, onSelectPath, initialUrl, initialOptions
 }: SmartAddDialogProps) {
   const [url, setUrl]                         = useState("");
+
+  // Apply initial options from extension/search if provided
+  useEffect(() => {
+    if (isOpen && initialOptions) {
+      if (initialOptions.quality) setQuality(initialOptions.quality as VideoQuality);
+      if (initialOptions.subtitle_lang) setSubtitleLang(initialOptions.subtitle_lang);
+      if (initialOptions.download_path) setCustomPath(initialOptions.download_path);
+    }
+  }, [isOpen, initialOptions]);
 
   // Sync internal url state with initialUrl and trigger analysis if opening with a prefilled URL
   useEffect(() => {
