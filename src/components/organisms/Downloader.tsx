@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Terminal, Search, Plus, Pause, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { open, ask } from '@tauri-apps/plugin-dialog';
@@ -43,20 +43,35 @@ export function Downloader() {
   } | undefined>();
   const [playingVideo, setPlayingVideo]       = useState<{ url: string; title: string } | null>(null);
 
+  const lastProcessedUrlRef = useRef<{ url: string; time: number } | null>(null);
+
   // Listen for URLs sent by the browser extension
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      listen<{
+    
+    const setupListener = async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlisten = await listen<{
         url: string;
         title?: string;
         auto_start?: boolean;
         quality?: string;
         subtitle_lang?: string;
         download_path?: string;
+        thumbnail?: string;
         instant?: boolean;
       }>('omni://add-url', (event) => {
-        const { url, quality, subtitle_lang, download_path, instant } = event.payload;
+        const { url, title, thumbnail, quality, subtitle_lang, download_path, instant } = event.payload;
+
+        // --- Deduplication Logic ---
+        const now = Date.now();
+        if (lastProcessedUrlRef.current && 
+            lastProcessedUrlRef.current.url === url && 
+            (now - lastProcessedUrlRef.current.time) < 2000) {
+          console.log(`[Omni] Skipping duplicate event for ${url}`);
+          return;
+        }
+        lastProcessedUrlRef.current = { url, time: now };
 
         setPrefilledUrl(url);
         setPrefilledOptions({
@@ -66,30 +81,43 @@ export function Downloader() {
         });
 
         if (instant) {
-          // Instant background download
-          analyzeLink(url).then(result => {
-            if (!result?.metadata) return;
-            const meta = result.metadata;
-            import('../../lib/linkAnalyzer').then(({ analyzeLinkType }) => {
-                const info = analyzeLinkType(url);
-                const options = {
-                    quality: (quality || 'best') as any,
-                    subtitleLang: subtitle_lang || undefined,
-                    downloadPath: download_path || baseDownloadPath,
-                };
-                addTask(url, info.service, options, meta.title, meta.thumbnail).then(id => {
-                    startDownload(url, info.service, options, id);
-                    toast.success(`Background download started: ${meta.title}`);
-                });
-            });
+          // Instant background download logic 🚀
+          import('../../lib/linkAnalyzer').then(({ analyzeLinkType }) => {
+            const info = analyzeLinkType(url);
+            const options = {
+              quality: (quality || 'best') as any,
+              subtitleLang: subtitle_lang || undefined,
+              downloadPath: download_path || baseDownloadPath,
+            };
+
+            const finalizeAdd = (finalTitle: string, finalThumb?: string) => {
+              // Status will be 'waiting' by default, and the Queue Manager in useDownloader 
+              // will pick it up automatically if the queue is active.
+              addTask(url, info.service, options, finalTitle, finalThumb).then(() => {
+                toast.success(`Added to queue: ${finalTitle}`);
+              });
+            };
+
+            // If extension already provided metadata, use it instantly!
+            if (title && thumbnail) {
+              finalizeAdd(title, thumbnail);
+            } else {
+              // Fallback to analysis only if metadata is missing
+              analyzeLink(url).then(result => {
+                if (!result?.metadata) return;
+                finalizeAdd(result.metadata.title, result.metadata.thumbnail);
+              });
+            }
           });
         } else {
           setIsAddDialogOpen(true);
         }
-      }).then((fn) => { unlisten = fn; });
-    });
+      });
+    };
+
+    setupListener();
     return () => { if (unlisten) unlisten(); };
-  }, []);
+  }, [baseDownloadPath, addTask, analyzeLink]);
 
   const filteredTasks = tasks.filter(t => matchesFilter(t, filter));
 

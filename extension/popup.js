@@ -4,7 +4,6 @@ import OMNI_CONFIG from './config.js';
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const downloadBtn   = document.getElementById('downloadBtn');
 const currentUrlEl  = document.getElementById('currentUrl');
-const optionsToggle = document.getElementById('optionsToggle');
 const optionsContent = document.getElementById('optionsContent');
 
 const qualitySelect = document.getElementById('qualitySelect');
@@ -38,9 +37,12 @@ chrome.storage.sync.get([OMNI_CONFIG.optionsKey], (data) => {
 // Show current tab URL + Trigger Analysis
 chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
   if (tab?.url) {
-    const raw = tab.url.replace(/^https?:\/\//, '');
-    currentUrlEl.textContent = raw.length > 54 ? raw.slice(0, 53) + '…' : raw;
+    let raw = tab.url.replace(/^https?:\/\//, '').replace(/^www\./, '');
+    if (raw.length > 35) raw = raw.slice(0, 34) + '…';
+    currentUrlEl.textContent = raw;
     analyzeUrl(tab.url);
+  } else {
+    currentUrlEl.textContent = "No active tab detected";
   }
 });
 
@@ -59,6 +61,9 @@ async function analyzeUrl(url) {
             previewTitle.textContent = `Error: ${json.error}`;
             return;
         }
+
+        // Auto-reveal options once metadata is ready
+        optionsContent.classList.add('active');
 
         // ── 1. Update Preview ──
         previewTitle.textContent = json.title || "Unknown Title";
@@ -164,10 +169,6 @@ function formatBytes(bytes) {
 
 // ── Event Listeners ────────────────────────────────────────────────────────
 
-optionsToggle.addEventListener('click', () => {
-  optionsContent.classList.toggle('active');
-});
-
 [qualitySelect, subtitleSelect, pathInput].forEach(el => {
   el.addEventListener('change', saveOptions);
 });
@@ -194,6 +195,7 @@ downloadBtn.addEventListener('click', () => {
       quality: qualitySelect.value,
       subtitle_lang: subtitleSelect.value !== 'none' ? subtitleSelect.value : undefined,
       download_path: pathInput.value,
+      thumbnail: previewThumb.src,
       instant: true
     };
 
@@ -201,20 +203,20 @@ downloadBtn.addEventListener('click', () => {
       downloadBtn.disabled = false;
       if (response?.status === 'ok') {
         downloadBtn.classList.add('success');
-        downloadBtn.innerHTML = iconCheck + ' Scheduled!';
+        downloadBtn.innerHTML = iconCheck + ' Added to Queue';
         setTimeout(() => {
           downloadBtn.classList.remove('success');
-          downloadBtn.innerHTML = iconDownload + ' Send to OmniDownloader';
-        }, 2500);
+          downloadBtn.innerHTML = iconPlus + ' Add to Queue';
+        }, 3000);
       } else {
-        downloadBtn.innerHTML = iconDownload + ' App not running!';
+        downloadBtn.innerHTML = iconPlus + ' App not running!';
         setTimeout(() => {
-          downloadBtn.innerHTML = iconDownload + ' Send to OmniDownloader';
+          downloadBtn.innerHTML = iconPlus + ' Add to Queue';
         }, 2000);
       }
     });
   });
 });
 
-const iconDownload = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>`;
-const iconCheck = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const iconPlus = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>`;
+const iconCheck = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;

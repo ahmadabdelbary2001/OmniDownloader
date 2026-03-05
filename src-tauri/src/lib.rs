@@ -22,6 +22,8 @@ pub struct AddUrlPayload {
     #[serde(default)]
     pub download_path: Option<String>,
     #[serde(default)]
+    pub thumbnail: Option<String>,
+    #[serde(default)]
     pub instant: Option<bool>,
 }
 

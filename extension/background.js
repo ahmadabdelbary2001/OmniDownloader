@@ -27,8 +27,10 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'sendToApp') {
     const options = {
       quality: request.quality,
-      subtitle: request.subtitle,
-      download_path: request.download_path
+      subtitle: request.subtitle_lang || request.subtitle,
+      download_path: request.download_path,
+      thumbnail: request.thumbnail,
+      instant: request.instant
     };
     
     sendToApp(request.url, request.title, options)
@@ -60,7 +62,9 @@ async function sendToApp(url, title, options = {}) {
     title: title || url,
     quality: options.quality,
     subtitle_lang: options.subtitle,
-    download_path: options.download_path
+    download_path: options.download_path,
+    thumbnail: options.thumbnail,
+    instant: options.instant
   };
 
   const res = await fetch(OMNI_CONFIG.endpoints.add, {
