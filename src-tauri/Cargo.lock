@@ -2315,7 +2315,7 @@ dependencies = [
 
 [[package]]
 name = "omni_downloader"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "chrono",
  "once_cell",

@@ -258,15 +258,28 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
       }
 
       // ── STEP 2: Universal Quality Extraction ───────────────────
-      const representativeUrl = (isPlaylist && json.entries?.[0]) 
+      let representativeUrl = (isPlaylist && json.entries?.[0]) 
         ? (json.entries[0].url || `https://www.youtube.com/watch?v=${json.entries[0].id}`) 
         : url;
+      
+      // Phase 63: Fast Meta 🚀 - Strip playlist params if it's a YouTube watch link
+      if (representativeUrl.includes('youtube.com/watch')) {
+        try {
+          const u = new URL(representativeUrl);
+          if (u.searchParams.has('list')) {
+            u.searchParams.delete('list');
+            u.searchParams.delete('index');
+            representativeUrl = u.toString();
+          }
+        } catch(e) {}
+      }
 
       if (addLog) addLog(isPlaylist ? `🎞️ Fetching representative qualities from first video...` : `🎞️ Fetching available qualities...`);
 
       const fmtCmd = Command.sidecar("ytdlp", [
         "--js-runtimes", "node",
         "--dump-single-json",
+        "--no-playlist", // Force single video analysis
         "--no-download",
         "--no-check-certificate",
         representativeUrl

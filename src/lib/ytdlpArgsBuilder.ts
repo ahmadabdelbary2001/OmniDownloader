@@ -44,6 +44,7 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
     "--newline",
     "--progress",
     "--no-colors",
+    "--no-playlist", // Enforce single video download for mixed URLs
     "-P", downloadPath,
     "-f", qualityArgs,
     ...(sortArgs ? ["-S", sortArgs] : []),

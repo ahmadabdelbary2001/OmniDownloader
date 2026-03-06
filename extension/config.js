@@ -1,4 +1,4 @@
-// extension/config.js — Shared constants for OmniDownloader Extension v2.4
+// extension/config.js — Shared constants for OmniDownloader Extension v2.5
 
 const OMNI_CONFIG = {
   version:    '2.4',

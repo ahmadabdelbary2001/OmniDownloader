@@ -1,4 +1,4 @@
-// extension/background.js — Service Worker for OmniDownloader Extension v2.4
+// extension/background.js — Service Worker for OmniDownloader Extension v2.5
 import OMNI_CONFIG from './config.js';
 
 // ── Context menu setup ─────────────────────────────────────────────────────

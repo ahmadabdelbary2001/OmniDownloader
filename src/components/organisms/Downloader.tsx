@@ -255,7 +255,7 @@ export function Downloader() {
                 <span className="text-foreground text-sm tracking-[0.2em]">DOWNLOADER</span>
               </h1>
             </div>
-            <p className="text-[9px] uppercase font-bold tracking-[3px] text-muted-foreground mt-1 ml-14">v2.4 Lavender Tech</p>
+            <p className="text-[9px] uppercase font-bold tracking-[3px] text-muted-foreground mt-1 ml-14">v2.5 Lavender Tech</p>
           </div>
 
           <div className="h-10 w-px bg-border mx-2" />

@@ -1,4 +1,4 @@
-// extension/popup.js — Advanced Popup Controller for OmniDownloader Extension v2.4
+// extension/popup.js — Advanced Popup Controller for OmniDownloader Extension v2.5
 import OMNI_CONFIG from './config.js';
 
 // ── DOM refs ───────────────────────────────────────────────────────────────

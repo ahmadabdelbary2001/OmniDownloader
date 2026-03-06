@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OmniDownloader Helper",
-  "version": "2.4",
+  "version": "2.5",
   "description": "Send video URLs directly to OmniDownloader with one click",
   "permissions": ["activeTab", "scripting", "storage", "contextMenus", "alarms"],
   "host_permissions": ["http://127.0.0.1:7433/*", "https://*.youtube.com/*", "https://youtu.be/*"],
