@@ -148,10 +148,18 @@ function populateQualities(json) {
             const opt = document.createElement('option');
             opt.value = `${d.h}p`;
             opt.textContent = d.label;
-            qualitySelect.appendChild(opt);
-        });
-        return;
-    }
+        qualitySelect.appendChild(opt);
+    });
+    
+    // Always show Subtitles Only option for playlists too 📜
+    const subOnlyOpt = document.createElement('option');
+    subOnlyOpt.value = 'subtitles';
+    subOnlyOpt.textContent = `📜 Subtitles Only (SRT/VTT)`;
+    subOnlyOpt.dataset.size = 0;
+    qualitySelect.appendChild(subOnlyOpt);
+    
+    return;
+}
 
     sortedHeights.forEach(h => {
         const info = heightMap.get(h);
@@ -185,16 +193,12 @@ function populateQualities(json) {
         qualitySelect.appendChild(opt);
     }
 
-    const hasSubs = (json.subtitles && Object.keys(json.subtitles).length > 0) || 
-                    (json.automatic_captions && Object.keys(json.automatic_captions).length > 0);
-    
-    if (hasSubs) {
-        const opt = document.createElement('option');
-        opt.value = 'subtitles';
-        opt.textContent = `📜 Subtitles Only (SRT)`;
-        opt.dataset.size = 0;
-        qualitySelect.appendChild(opt);
-    }
+    // Always show Subtitles Only option (Phase 61) 📜
+    const subOnlyOpt = document.createElement('option');
+    subOnlyOpt.value = 'subtitles';
+    subOnlyOpt.textContent = `📜 Subtitles Only (SRT/VTT)`;
+    subOnlyOpt.dataset.size = 0;
+    qualitySelect.appendChild(subOnlyOpt);
 }
 
 function populateSubtitles(json) {

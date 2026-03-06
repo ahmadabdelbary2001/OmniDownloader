@@ -55,7 +55,7 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
   ];
 
   if (isSubtitleOnly) {
-    args.push("--skip-download");
+    args.push("--skip-download", "--ignore-errors");
   }
 
   if (options.playlistItems) args.push("--playlist-items", options.playlistItems);
@@ -116,6 +116,7 @@ export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downl
     '-f', qualityArgs,
     ...(sortArgs ? ["-S", sortArgs] : []),
     "--extractor-args", extractorArgs,
+    "--no-check-certificate",
     ...(browser !== 'none' ? ['--cookies-from-browser', browser, '--no-cache-dir'] : []),
   ];
 
@@ -126,7 +127,7 @@ export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downl
   if (q === 'audio') {
     args.push('-x', '--audio-format', 'mp3');
   } else if (isSubtitleOnly) {
-    args.push('--skip-download');
+    args.push('--skip-download', '--ignore-errors');
   }
 
   if (options.subtitleLang && options.subtitleLang !== 'none') {

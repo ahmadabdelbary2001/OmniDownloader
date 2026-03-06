@@ -201,6 +201,11 @@ export function useDownloadEngine({
               addLog(`🕵️‍♂️ [Cookie Lock] ${browser} is locked (likely open in another window). Suggestion: Close ${browser} or set Browser to "None" to use PO Tokens instead.`);
             }
 
+            if (trimmed.includes('Failed to decrypt with DPAPI')) {
+              cookieLock = true;
+              addLog(`🕵️‍♂️ [Decryption Error] ${browser} cookies could not be decrypted (DPAPI error). This is a known Windows limitation for some profiles.`);
+            }
+
             if (
               trimmed.includes('GVS PO Token') || 
               trimmed.includes('SABR streaming') || 
@@ -264,10 +269,16 @@ export function useDownloadEngine({
         if (stopRequestedRef.current) break;
 
         if (cookieLock) {
+          addLog(`🔄 Client ${client} (${browser}) failed auth. Trying next available browser...`);
           continue; // Try next browser
+        } else if (lastCode !== 0) {
+          addLog(`🔄 Client ${client} (${browser}) failed with code ${lastCode}${restrictionNoted ? ' (Restrictions detected)' : ''}. Proceeding to next auth/client...`);
+          // If it's not a cookie lock but failed, we might want to try other browsers anyway? 
+          if (browser === 'none') break; // If 'none' failed, move to next client
+          continue; 
         } else {
-          addLog(`🔄 Client ${client} ${lastCode === 0 ? 'restricted' : 'failed'}${restrictionNoted ? ' (Restrictions noted)' : ''}. Proceeding to next client...`);
-          break; // Move to next client
+          // Success (code 0)
+          break; // Exit browser loop
         }
       }
     }
