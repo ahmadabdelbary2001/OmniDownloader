@@ -14,6 +14,12 @@ const pathInput      = document.getElementById('pathInput');
 const previewArea  = document.getElementById('previewArea');
 const previewThumb = document.getElementById('previewThumb');
 const previewTitle = document.getElementById('previewTitle');
+const previewMeta  = document.getElementById('previewMeta');
+
+const playlistSection = document.getElementById('playlistSection');
+const playlistArea    = document.getElementById('playlistArea');
+const selectAllBtn     = document.getElementById('selectAllBtn');
+const selectedCountEl  = document.getElementById('selectedCount');
 
 // ── Initialization ─────────────────────────────────────────────────────────
 
@@ -70,15 +76,24 @@ async function analyzeUrl(url) {
 
         // ── 1. Update Preview ──
         previewTitle.textContent = json.title || "Unknown Title";
+        updatePreviewMeta(json);
         if (json.thumbnail) {
             previewThumb.src = json.thumbnail;
             previewThumb.style.opacity = '1';
         }
 
-        // ── 2. Populate Qualities ──
+        // ── 2. Handle Playlist ──
+        if (json.entries && json.entries.length > 0) {
+            playlistSection.classList.add('active');
+            populatePlaylist(json, url);
+        } else {
+            playlistSection.classList.remove('active');
+        }
+
+        // ── 3. Populate Qualities ──
         populateQualities(json);
 
-        // ── 3. Populate Subtitles ──
+        // ── 4. Populate Subtitles ──
         populateSubtitles(json);
 
     } catch (err) {
@@ -111,22 +126,43 @@ function populateQualities(json) {
     // Clear dynamic options (keep 'best')
     qualitySelect.innerHTML = '<option value="best">🚀 Best Available</option>';
 
+    const isPlaylist = json.entries && json.entries.length > 0;
+
+    // Phase 57: Fallback for Playlists (Generic High-Quality options)
+    if (sortedHeights.length === 0 && isPlaylist) {
+        const playlistDefaults = [
+            { h: 2160, label: '4K 2160p' },
+            { h: 1440, label: '2K 1440p' },
+            { h: 1080, label: 'FHD 1080p' },
+            { h: 720, label: 'HD 720p' },
+            { h: 480, label: '480p' },
+            { h: 360, label: '360p' }
+        ];
+        playlistDefaults.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = `${d.h}p`;
+            opt.textContent = d.label;
+            qualitySelect.appendChild(opt);
+        });
+        return;
+    }
+
     sortedHeights.forEach(h => {
         const info = heightMap.get(h);
         const totalSize = info.size + audioSize;
-        const sizeStr = totalSize > 0 ? ` (~${formatBytes(totalSize)})` : '';
+        const sizeStr = (totalSize > 0 && !isPlaylist) ? ` (~${formatBytes(totalSize)})` : '';
         
-        let labelPrefix = `${h}p`;
-        if (h >= 2160) labelPrefix = `4K ${h}p`;
-        else if (h >= 1440) labelPrefix = `2K ${h}p`;
-        else if (h >= 1080) labelPrefix = `FHD ${h}p`;
-        else if (h >= 720) labelPrefix = `HD ${h}p`;
+        let label = `${h}p`;
+        if (h >= 2160) label = `4K ${h}p`;
+        else if (h >= 1440) label = `2K ${h}p`;
+        else if (h >= 1080) label = `FHD ${h}p`;
+        else if (h >= 720) label = `HD ${h}p`;
 
         const suffixes = [];
         if (info.fps > 30) suffixes.push(`${info.fps}fps`);
         if (info.note && info.note.toUpperCase().includes('HDR')) suffixes.push('HDR');
         
-        const finalLabel = suffixes.length > 0 ? `${labelPrefix} (${suffixes.join(' ')})` : labelPrefix;
+        const finalLabel = suffixes.length > 0 ? `${label} (${suffixes.join(' ')})` : label;
         
         const opt = document.createElement('option');
         opt.value = `${h}p`;
@@ -186,12 +222,188 @@ function populateSubtitles(json) {
     }
 }
 
+function populatePlaylist(json, tabUrl) {
+    playlistArea.innerHTML = '';
+    const entries = json.entries || [];
+    
+    // Phase 57: "displayThumbnail" logic - Match targeted video from URL 🎯
+    let targetIdx = 0;
+    try {
+        const urlParams = new URLSearchParams(new URL(tabUrl).search);
+        const vId = urlParams.get('v');
+        const pIdx = urlParams.get('index');
+        
+        if (vId) {
+            const found = entries.findIndex(e => e.id === vId);
+            if (found !== -1) targetIdx = found;
+        } else if (pIdx) {
+            const found = entries.findIndex(e => (e.index || e.playlist_index) == pIdx);
+            if (found !== -1) targetIdx = found;
+        }
+    } catch (e) {}
+
+    entries.forEach((entry, idx) => {
+        const item = document.createElement('div');
+        item.className = 'playlist-item selected'; // Fixed: Re-added missing classes! 🚀
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.dataset.index = idx;
+        
+        const isTarget = (idx === targetIdx);
+        if (isTarget) {
+            item.classList.add('active-preview');
+            // Update top preview immediately for the targeted video
+            previewTitle.textContent = entry.title || json.title;
+            updatePreviewMeta(entry); // Pass entry to match app 👤👁️
+            if (entry.subtitles || entry.automatic_captions) {
+                populateSubtitles(entry);
+            }
+            if (entry.thumbnail || (entry.thumbnails?.[0]?.url)) {
+                previewThumb.src = entry.thumbnail || entry.thumbnails[0].url;
+                previewThumb.style.opacity = '1';
+            }
+        }
+
+        const thumbWrap = document.createElement('div');
+        thumbWrap.className = 'item-thumb';
+        
+        const img = document.createElement('img');
+        img.src = entry.thumbnail || (entry.thumbnails?.[0]?.url) || '';
+        img.onerror = () => img.style.display = 'none';
+        thumbWrap.appendChild(img);
+        
+        const info = document.createElement('div');
+        info.className = 'item-info';
+        
+        const title = document.createElement('div');
+        title.className = 'item-title';
+        title.textContent = `${entry.index || idx + 1}. ${entry.title || 'Unknown'}`;
+        
+        const meta = document.createElement('div');
+        meta.className = 'item-meta';
+        meta.textContent = entry.duration ? `${formatDuration(entry.duration)}` : 'Video';
+        
+        info.appendChild(title);
+        info.appendChild(meta);
+        
+        item.appendChild(checkbox);
+        item.appendChild(thumbWrap); // Injected Thumbnail 📸
+        item.appendChild(info);
+        
+        // Toggle selection AND Update Preview on row click
+        item.onclick = (e) => {
+            // If user clicked the checkbox directly, don't double-toggle
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+            
+            // Sync selection state
+            item.classList.toggle('selected', checkbox.checked);
+            updateSelectedCount();
+
+            // Update Main Preview 🎞️
+            previewTitle.textContent = entry.title || "Unknown Title";
+            updatePreviewMeta(entry);
+            if (entry.subtitles || entry.automatic_captions) {
+                populateSubtitles(entry);
+            }
+            if (entry.thumbnail || entry.thumbnails?.[0]?.url) {
+                previewThumb.src = entry.thumbnail || entry.thumbnails[0].url;
+                previewThumb.style.opacity = '1';
+            }
+            
+            // Visual highlight (active preview)
+            playlistArea.querySelectorAll('.playlist-item').forEach(p => p.classList.remove('active-preview'));
+            item.classList.add('active-preview');
+        };
+
+        // Checkbox click needs to be synced but handled via row item.onclick
+        // We let it propagate so item.onclick catches it, but we adjust the logic above.
+        
+        playlistArea.appendChild(item);
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkboxes = playlistArea.querySelectorAll('input[type="checkbox"]');
+    const checked = Array.from(checkboxes).filter(c => c.checked).length;
+    
+    selectedCountEl.textContent = checked;
+    
+    if (checked === 0) {
+        selectAllBtn.textContent = "Select All";
+        selectAllBtn.dataset.nextState = 'select';
+    } else if (checked === checkboxes.length) {
+        selectAllBtn.textContent = "Deselect All";
+        selectAllBtn.dataset.nextState = 'deselect';
+    } else {
+        selectAllBtn.textContent = "Deselect All"; // If some are selected, next step is often deselect or select? Desktop app usually has "Deselect" if any are selected.
+        selectAllBtn.dataset.nextState = 'deselect';
+    }
+}
+
+selectAllBtn.onclick = () => {
+    const state = selectAllBtn.dataset.nextState || 'select';
+    const target = (state === 'select');
+    
+    playlistArea.querySelectorAll('input[type="checkbox"]').forEach(c => {
+        c.checked = target;
+        c.closest('.playlist-item').classList.toggle('selected', target);
+    });
+    updateSelectedCount();
+};
+
+function formatDuration(sec) {
+    if (!sec) return "";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function updatePreviewMeta(data) {
+    previewMeta.innerHTML = '';
+    const parts = [];
+    
+    if (data.uploader) parts.push(`<span>👤 ${data.uploader}</span>`);
+    if (data.viewCount || data.view_count) {
+        const views = data.viewCount || data.view_count;
+        parts.push(`<span>👁️ ${formatViews(views)}</span>`);
+    }
+    if (data.duration) parts.push(`<span>⏱️ ${formatDuration(data.duration)}</span>`);
+    if (data.uploadDate || data.upload_date) {
+        const date = data.uploadDate || data.upload_date;
+        parts.push(`<span>📅 ${formatDate(date)}</span>`);
+    }
+
+    previewMeta.innerHTML = parts.join('');
+}
+
+function formatViews(views) {
+    if (!views) return '';
+    if (views >= 1000000) return (views / 1000000).toFixed(1) + 'M';
+    if (views >= 1000) return (views / 1000).toFixed(1) + 'K';
+    return views.toString();
+}
+
+function formatDate(dateStr) {
+    if (!dateStr || dateStr.length !== 8) return dateStr || '';
+    const year = dateStr.substring(0, 4);
+    const month = dateStr.substring(4, 6);
+    const day = dateStr.substring(6, 8);
+    return `${year}-${month}-${day}`;
 }
 
 // ── Event Listeners ────────────────────────────────────────────────────────
@@ -218,6 +430,20 @@ downloadBtn.addEventListener('click', () => {
     const selectedOpt = qualitySelect.options[qualitySelect.selectedIndex];
     const estimatedSize = selectedOpt ? parseInt(selectedOpt.dataset.size || '0') : 0;
 
+    const isPlaylist = lastMetadata && lastMetadata.entries && lastMetadata.entries.length > 0;
+    let finalPath = pathInput.value;
+
+    if (isPlaylist) {
+        // Phase 59: Multi-video subfolder 📂
+        const playlistTitle = lastMetadata.title || "Playlist";
+        const sanitizedTitle = playlistTitle.replace(/[\\/:*?"<>|]/g, '_').trim();
+        if (sanitizedTitle) {
+            const separator = finalPath.includes('\\') ? '\\' : '/';
+            if (finalPath && !finalPath.endsWith(separator)) finalPath += separator;
+            finalPath += sanitizedTitle;
+        }
+    }
+
     const payload = {
       action: 'sendToApp',
       url: tab.url,
@@ -225,11 +451,23 @@ downloadBtn.addEventListener('click', () => {
       quality: qualitySelect.value,
       estimated_size: estimatedSize,
       subtitle_lang: subtitleSelect.value !== 'none' ? subtitleSelect.value : undefined,
-      download_path: pathInput.value,
+      download_path: finalPath,
       thumbnail: previewThumb.src,
-      metadata: lastMetadata, // Phase 54: Pass raw metadata to skip analysis
+      metadata: lastMetadata, // Initial default
       instant: true
     };
+
+    if (isPlaylist) {
+        const selectedIndices = Array.from(playlistArea.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(c => parseInt(c.dataset.index));
+        
+        const selected = lastMetadata.entries.filter((_, idx) => selectedIndices.includes(idx));
+        if (selected.length > 0) {
+            payload.selected_entries = selected;
+            payload.is_playlist = true;
+            payload.metadata = null; // CRITICAL: Prevent duplication 🛑
+        }
+    }
 
     chrome.runtime.sendMessage(payload, (response) => {
       downloadBtn.disabled = false;

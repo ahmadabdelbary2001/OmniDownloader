@@ -40,6 +40,10 @@ pub struct AddUrlPayload {
     pub instant: Option<bool>,
     #[serde(default)]
     pub metadata: Option<serde_json::Value>,
+    #[serde(default)]
+    pub selected_entries: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub is_playlist: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]

@@ -64,8 +64,13 @@ export function Downloader() {
         thumbnail?: string;
         metadata?: any;
         instant?: boolean;
+        selected_entries?: any[];
+        is_playlist?: boolean;
       }>('omni://add-url', (event) => {
-        const { url, title, thumbnail, quality, subtitle_lang, download_path, estimated_size, metadata, instant } = event.payload;
+        const { 
+          url, title, thumbnail, quality, subtitle_lang, download_path, 
+          estimated_size, metadata, instant, selected_entries
+        } = event.payload;
 
         // --- Deduplication Logic ---
         const now = Date.now();
@@ -97,7 +102,30 @@ export function Downloader() {
         });
 
         if (instant) {
-          // Instant background download logic 🚀
+          // Phase 56: Bulk Add Selection 🚀
+          if (selected_entries && selected_entries.length > 0) {
+            import('../../lib/linkAnalyzer').then(({ analyzeLinkType }) => {
+              const bulkItems = selected_entries.map((entry: any) => ({
+                url: entry.url || entry.webpage_url || url,
+                title: entry.title || 'Unknown Video',
+                service: analyzeLinkType(entry.url || url).service,
+                thumbnail: entry.thumbnail || entry.thumbnails?.[0]?.url,
+                options: {
+                  quality: (quality || 'best') as any,
+                  subtitleLang: subtitle_lang || undefined,
+                  downloadPath: download_path || baseDownloadPath,
+                  estimatedVideoSize: estimated_size || undefined,
+                }
+              }));
+
+              addTasksBulk(bulkItems).then(() => {
+                toast.success(`Added ${bulkItems.length} videos from playlist`);
+              });
+            });
+            return;
+          }
+
+          // Instant background download logic (Single Video) 🚀
           import('../../lib/linkAnalyzer').then(({ analyzeLinkType }) => {
             const info = analyzeLinkType(url);
             const options = {
@@ -115,12 +143,10 @@ export function Downloader() {
 
             // Phase 54: use parsed metadata if available, skip analyzeLink
             if (parsedMeta) {
-              // Prioritize payload metadata if provided by extension explicitly, fallback to parsed
               finalizeAdd(parsedMeta.title || title || 'Unknown', thumbnail || parsedMeta.thumbnail);
             } else if (title && thumbnail) {
               finalizeAdd(title, thumbnail);
             } else {
-              // Fallback to analysis ONLY if metadata is missing
               analyzeLink(url).then(result => {
                 if (!result?.metadata) return;
                 finalizeAdd(result.metadata.title, result.metadata.thumbnail);
