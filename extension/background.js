@@ -30,6 +30,8 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       subtitle: request.subtitle_lang || request.subtitle,
       download_path: request.download_path,
       thumbnail: request.thumbnail,
+      estimated_size: request.estimated_size,
+      metadata: request.metadata,
       instant: request.instant
     };
     
@@ -64,6 +66,8 @@ async function sendToApp(url, title, options = {}) {
     subtitle_lang: options.subtitle,
     download_path: options.download_path,
     thumbnail: options.thumbnail,
+    estimated_size: options.estimated_size,
+    metadata: options.metadata,
     instant: options.instant
   };
 

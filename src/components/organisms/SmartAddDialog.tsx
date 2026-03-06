@@ -32,6 +32,7 @@ interface SmartAddDialogProps {
     quality?: string;
     subtitle_lang?: string;
     download_path?: string;
+    metadata?: MediaMetadata;
   };
 }
 
@@ -53,10 +54,35 @@ export function SmartAddDialog({
   useEffect(() => {
     if (isOpen && initialUrl) {
       setUrl(initialUrl);
+
+      // Phase 54: If metadata is already provided (e.g. from extension), skip analysis!
+      if (initialOptions?.metadata) {
+        const meta = initialOptions.metadata;
+        setMetadata(meta);
+        if (meta.isPlaylist && meta.entries) {
+          const { requestedIndex, requestedVideoId, entries } = meta;
+          if (requestedVideoId || requestedIndex) {
+            const selection = new Set<number>();
+            if (requestedIndex) selection.add(requestedIndex);
+            else {
+              const found = entries.find((e: any) => e.id === requestedVideoId);
+              if (found) selection.add(found.index);
+            }
+            setSelectedIndices(selection);
+            setPlaylistItems(getRangeString(selection));
+            setIsPlaylistView(false);
+          } else {
+            const all = new Set<number>();
+            entries.forEach((e: any) => all.add(e.index));
+            setSelectedIndices(all);
+            setPlaylistItems(getRangeString(all));
+            setIsPlaylistView(true);
+          }
+        }
+        return; 
+      }
       
-      // Define a local analysis function that we can trigger immediately
       const triggerAnalysis = async () => {
-        // Reset previous analysis states
         setMetadata(null);
         setEmbedUrl(null);
         setPreviewUrl(null);
@@ -67,7 +93,6 @@ export function SmartAddDialog({
           if (result) {
             if (result.metadata) {
               setMetadata(result.metadata);
-              // Maintain parity with direct startAnalysis logic for playlists
               if (result.metadata.isPlaylist) {
                 const { requestedIndex, requestedVideoId, entries } = result.metadata;
                 if (requestedVideoId || requestedIndex) {
@@ -104,7 +129,7 @@ export function SmartAddDialog({
       
       triggerAnalysis();
     }
-  }, [isOpen, initialUrl, onAnalyze]);
+  }, [isOpen, initialUrl, onAnalyze, initialOptions]);
   const [isAnalyzing, setIsAnalyzing]         = useState(false);
   const [metadata, setMetadata]               = useState<MediaMetadata | null>(null);
   const [quality, setQuality]                 = useState<VideoQuality>("best");

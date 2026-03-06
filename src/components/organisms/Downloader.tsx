@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { open, ask } from '@tauri-apps/plugin-dialog';
 
 import { useDownloader } from '../../hooks/useDownloader';
+import { parseYtdlpOutput } from '../../hooks/useMetadata';
 import { DownloadTable } from './DownloadTable';
 import { SmartAddDialog } from './SmartAddDialog';
 import { SearchTab } from './SearchTab';
@@ -40,6 +41,7 @@ export function Downloader() {
     quality?: string;
     subtitle_lang?: string;
     download_path?: string;
+    metadata?: import('../../types/downloader').MediaMetadata;
   } | undefined>();
   const [playingVideo, setPlayingVideo]       = useState<{ url: string; title: string } | null>(null);
 
@@ -60,9 +62,10 @@ export function Downloader() {
         download_path?: string;
         estimated_size?: number;
         thumbnail?: string;
+        metadata?: any;
         instant?: boolean;
       }>('omni://add-url', (event) => {
-        const { url, title, thumbnail, quality, subtitle_lang, download_path, estimated_size, instant } = event.payload;
+        const { url, title, thumbnail, quality, subtitle_lang, download_path, estimated_size, metadata, instant } = event.payload;
 
         // --- Deduplication Logic ---
         const now = Date.now();
@@ -74,11 +77,23 @@ export function Downloader() {
         }
         lastProcessedUrlRef.current = { url, time: now };
 
+        // Phase 54: If metadata is present, parse it to avoid redundant analysis
+        let parsedMeta: any = null;
+        if (metadata) {
+          try {
+            parsedMeta = parseYtdlpOutput(metadata, url);
+            console.log("[Omni] Successfully parsed metadata from extension payload");
+          } catch (e) {
+            console.error("[Omni] Failed to parse extension metadata:", e);
+          }
+        }
+
         setPrefilledUrl(url);
         setPrefilledOptions({
           quality,
           subtitle_lang,
           download_path,
+          metadata: parsedMeta
         });
 
         if (instant) {
@@ -93,18 +108,19 @@ export function Downloader() {
             };
 
             const finalizeAdd = (finalTitle: string, finalThumb?: string) => {
-              // Status will be 'waiting' by default, and the Queue Manager in useDownloader 
-              // will pick it up automatically if the queue is active.
               addTask(url, info.service, options, finalTitle, finalThumb).then(() => {
                 toast.success(`Added to queue: ${finalTitle}`);
               });
             };
 
-            // If extension already provided metadata, use it instantly!
-            if (title && thumbnail) {
+            // Phase 54: use parsed metadata if available, skip analyzeLink
+            if (parsedMeta) {
+              // Prioritize payload metadata if provided by extension explicitly, fallback to parsed
+              finalizeAdd(parsedMeta.title || title || 'Unknown', thumbnail || parsedMeta.thumbnail);
+            } else if (title && thumbnail) {
               finalizeAdd(title, thumbnail);
             } else {
-              // Fallback to analysis only if metadata is missing
+              // Fallback to analysis ONLY if metadata is missing
               analyzeLink(url).then(result => {
                 if (!result?.metadata) return;
                 finalizeAdd(result.metadata.title, result.metadata.thumbnail);

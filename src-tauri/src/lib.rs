@@ -25,6 +25,8 @@ pub struct AddUrlPayload {
     pub thumbnail: Option<String>,
     #[serde(default)]
     pub instant: Option<bool>,
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]

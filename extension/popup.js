@@ -46,6 +46,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
   }
 });
 
+let lastMetadata = null;
+
 async function analyzeUrl(url) {
     previewArea.classList.add('active');
     previewArea.classList.add('shimmer');
@@ -56,6 +58,7 @@ async function analyzeUrl(url) {
         const res = await fetch(`${OMNI_CONFIG.endpoints.analyze}?url=${encodeURIComponent(url)}`);
         const json = await res.json();
         
+        lastMetadata = json; // Store for download payload
         previewArea.classList.remove('shimmer');
         if (json.error) {
             previewTitle.textContent = `Error: ${json.error}`;
@@ -224,6 +227,7 @@ downloadBtn.addEventListener('click', () => {
       subtitle_lang: subtitleSelect.value !== 'none' ? subtitleSelect.value : undefined,
       download_path: pathInput.value,
       thumbnail: previewThumb.src,
+      metadata: lastMetadata, // Phase 54: Pass raw metadata to skip analysis
       instant: true
     };
 

@@ -51,8 +51,6 @@ export const DownloadRow = React.memo(({ task, isQueueActive, onPause, onResume,
               src={task.thumbnail} 
               className="w-12 h-7 object-cover rounded-lg bg-muted border border-border group-hover/thumb:border-primary/50 transition-all shadow-md" 
               alt="" 
-              referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
             />
           ) : (
             <div className="w-12 h-7 rounded-lg bg-muted border border-border flex items-center justify-center group-hover/thumb:border-primary/50 transition-all">
