@@ -126,6 +126,16 @@ function populateQualities(json) {
         opt.textContent = `🎵 Audio Only (MP3) (~${formatBytes(audioSize)})`;
         qualitySelect.appendChild(opt);
     }
+
+    const hasSubs = (json.subtitles && Object.keys(json.subtitles).length > 0) || 
+                    (json.automatic_captions && Object.keys(json.automatic_captions).length > 0);
+    
+    if (hasSubs) {
+        const opt = document.createElement('option');
+        opt.value = 'subtitles';
+        opt.textContent = `📜 Subtitles Only (SRT)`;
+        qualitySelect.appendChild(opt);
+    }
 }
 
 function populateSubtitles(json) {

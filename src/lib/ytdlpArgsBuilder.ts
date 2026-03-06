@@ -3,21 +3,15 @@ import { DownloadOptions } from '../types/downloader';
 /**
  * Builds the array of arguments for the yt-dlp command based on the provided options.
  */
-export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPath: string, ffmpegPath: string, client: string = 'web_embedded,mweb'): string[] {
-  // ── SUBTITLE FIX: mweb requires GVS PO Token for subtitles, causing them to be discarded.
-  // Override: if subtitles are requested, force ios/tv_embedded clients which:
-  //   - Don't require GVS PO Token
-  //   - Are NOT affected by SABR streaming (gives direct download URLs)
-  //   - Have full access to auto-generated captions
-  const hasSubtitleRequest = options.subtitleLang && options.subtitleLang !== 'none';
-  const effectiveClient = hasSubtitleRequest ? 'web,tv_embedded' : client;
-  let qualityArgs: string;
+export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPath: string, ffmpegPath: string, client: string = 'web_embedded,mweb', browser: string = 'chrome'): string[] {
   const q = options.quality || 'best';
+  const isSubtitleOnly = q === 'subtitles';
   
+  let qualityArgs: string;
   if (q === 'audio') {
     qualityArgs = "bestaudio/best";
-  } else if (q === 'subtitles') {
-    qualityArgs = "bestaudio/best"; // Placeholder, won't be used due to --skip-download
+  } else if (isSubtitleOnly) {
+    qualityArgs = "bestaudio/best"; 
   } else if (q === 'best') {
     qualityArgs = "bestvideo+bestaudio/best";
   } else {
@@ -33,8 +27,9 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
   const args = [
     "--js-runtimes", "node",
     "--ffmpeg-location", ffmpegPath,
-    ...(q !== 'subtitles' ? ["--merge-output-format", "mp4"] : []),
-    "--extractor-args", `youtube:player-client=${effectiveClient}`,
+    ...( (q !== 'subtitles' && q !== 'audio') ? ["--merge-output-format", "mp4"] : []),
+    "--extractor-args", `youtube:player-client=${client}`,
+    ...(browser !== 'none' ? ["--cookies-from-browser", browser, "--no-cache-dir"] : []),
     "--newline",
     "--progress",
     "--no-colors",
@@ -47,7 +42,7 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
     "--no-overwrites"
   ];
 
-  if (q === 'subtitles') {
+  if (isSubtitleOnly) {
     args.push("--skip-download");
   }
 
@@ -60,7 +55,7 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
       "--sub-langs", options.subtitleLang,
       "--convert-subs", "srt"
     );
-    if (options.embedSubtitles) {
+    if (options.embedSubtitles && !isSubtitleOnly) {
       args.push("--embed-subs");
     }
   }
@@ -72,13 +67,16 @@ export function buildYtDlpArgs(url: string, options: DownloadOptions, downloadPa
 /**
  * Builds the array of arguments for a batch playlist download.
  */
-export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downloadPath: string): string[] {
+export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downloadPath: string, client: string = 'web_embedded,mweb', browser: string = 'chrome'): string[] {
   const args = [
     url,
+    "--js-runtimes", "node",
     '--newline',
     '--progress',
     '--progress-template', '[download] %(progress._percent_str)s of %(progress._total_bytes_estimate_str)s at %(progress._speed_str)s ETA %(progress._eta_str)s',
     '-o', `${downloadPath}/%(title)s.%(ext)s`,
+    "--extractor-args", `youtube:player-client=${client}`,
+    ...(browser !== 'none' ? ['--cookies-from-browser', browser, '--no-cache-dir'] : []),
   ];
 
   if (options.playlistItems) {
@@ -98,7 +96,7 @@ export function buildBatchYtDlpArgs(url: string, options: DownloadOptions, downl
 
   if (options.subtitleLang && options.subtitleLang !== 'none') {
     args.push('--write-subs', '--write-auto-subs', '--sub-langs', options.subtitleLang, '--convert-subs', 'srt');
-    if (options.embedSubtitles) {
+    if (options.embedSubtitles && options.quality !== 'subtitles') {
       args.push('--embed-subs');
     }
   }
