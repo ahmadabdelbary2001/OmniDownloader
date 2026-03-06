@@ -55,16 +55,18 @@ export function useDownloadEngine({
 
     const smartLabel = label || targetUrl;
     
-    // v2.3.0 PARITY: For subtitles, use the old client priority that the user prefers
+    // Phase 50-53: Optimized client list focusing on Web/Desktop and JS-less fallbacks
     const isSubtitleOnly = options.quality === 'subtitles';
     const clients = service === 'ytdlp' 
       ? (isSubtitleOnly 
-          ? ['web_embedded,mweb', 'android,web', 'ios']
-          : ['ios', 'tv', 'tv_embedded', 'web_creator', 'android,web', 'web_embedded,mweb'])
+          ? ['android_vr', 'web_embedded,mweb', 'android,web']
+          : ['android_vr', 'web_embedded,mweb', 'web', 'tv_embedded', 'android,web'])
       : ['default'];
 
     const browsers = ['chrome', 'edge', 'firefox', 'brave', 'none'];
     let lastCode: number | null = 1;
+    let hadSuccess = false;
+    let finalQualityViolated = false;
     const isWindows = checkIsWindows();
 
     for (const client of clients) {
@@ -76,7 +78,8 @@ export function useDownloadEngine({
         setProgress(0);
         addLog(`🚀 [TRYING] ${client} (Auth: ${browser}) for ${smartLabel}`);
 
-        let softFailure = false;
+        let restrictionNoted = false;
+        let currentTryQualityViolated = false;
         let cookieLock = false;
 
         let args: string[] = [];
@@ -195,7 +198,7 @@ export function useDownloadEngine({
             
             if (trimmed.includes('Could not copy') && (trimmed.includes('cookie database') || trimmed.includes('Locked'))) {
               cookieLock = true;
-              addLog(`🕵️‍♂️ [Cookie Lock] ${browser} is locked. Rotating browser...`);
+              addLog(`🕵️‍♂️ [Cookie Lock] ${browser} is locked (likely open in another window). Suggestion: Close ${browser} or set Browser to "None" to use PO Tokens instead.`);
             }
 
             if (
@@ -205,9 +208,15 @@ export function useDownloadEngine({
               trimmed.includes('confirm you are not a bot') ||
               trimmed.includes('YouTube is no longer supported') ||
               trimmed.includes('no subtitles') ||
-              trimmed.includes("There aren't any subtitles")
+              trimmed.includes("There aren't any subtitles") ||
+              trimmed.includes('Sign in to confirm') || 
+              trimmed.includes('confirm your age') || 
+              trimmed.includes('Join this channel') ||
+              trimmed.includes('This video is unavailable') ||
+              trimmed.includes('HTTP Error 403') ||
+              trimmed.includes('n challenge failed')
             ) {
-              softFailure = true;
+              restrictionNoted = true;
               addLog(`🕵️‍♂️ [Rescue] Restriction or Missing Subtitles detected. Attempting bypass...`);
             }
           }
@@ -232,21 +241,23 @@ export function useDownloadEngine({
         
         if (lastCode === 0 && options.quality && (options.quality.includes('1080') || options.quality.includes('2160') || options.quality.includes('1440'))) {
           const actualTotal = completedBytes + lastPhaseActualSize;
-          if (options.estimatedVideoSize && actualTotal < (options.estimatedVideoSize * 0.4)) {
-            addLog(`🕵️‍♂️ [Quality Guard] Final size (${Math.round(actualTotal/1024/1024)}mb) is suspiciously low. Rotating client...`);
-            softFailure = true;
+          // For high-res, if size is less than 50% of estimated, it's likely a 360p fallback
+          if (options.estimatedVideoSize && actualTotal < (options.estimatedVideoSize * 0.5)) {
+            addLog(`🕵️‍♂️ [Quality Guard] Final size (${Math.round(actualTotal/1024/1024)}mb) is suspiciously low for ${options.quality}.`);
+            currentTryQualityViolated = true;
+            finalQualityViolated = true;
           }
         }
 
         addLog(`🏁 Client ${client} (${browser}) finished with code: ${lastCode}`);
         
-        // v2.3.0 PARITY: If code is 0 and no cookie lock, it's a success.
-        // We only retry a code 0 if Quality Guard detected a "tiny" file on a high-res request (and NOT for subtitles).
         if (lastCode === 0 && !cookieLock) {
-          if (!isSubtitleOnly && softFailure && options.quality && (options.quality.includes('1080') || options.quality.includes('2160'))) {
-            addLog(`🔄 Quality Guard triggered. Attempting a better client...`);
+          hadSuccess = true;
+          if (!isSubtitleOnly && currentTryQualityViolated) {
+            addLog(`🔄 Quality Guard triggered. Holding this success and attempting a better client...`);
           } else {
-            return 0; // SUCCESS
+            finalQualityViolated = false; // We found a good one!
+            return 0; // SUCCESS (Good quality or not high-res request)
           }
         }
 
@@ -255,13 +266,17 @@ export function useDownloadEngine({
         if (cookieLock) {
           continue; // Try next browser
         } else {
-          addLog(`🔄 Client ${client} failed or restricted. Proceeding to next client...`);
+          addLog(`🔄 Client ${client} ${lastCode === 0 ? 'restricted' : 'failed'}${restrictionNoted ? ' (Restrictions noted)' : ''}. Proceeding to next client...`);
           break; // Move to next client
         }
       }
     }
 
-    return lastCode;
+    if (hadSuccess && finalQualityViolated) {
+      addLog(`⚠️ [Quality Warning] The requested quality (${options.quality}) might not have been fully met (possibly limited by content/region). Settle for the best available resolution.`);
+    }
+
+    return hadSuccess ? 0 : lastCode;
   }, [baseDownloadPath, updateTask, setProgress, addLog, stopRequestedRef, activeProcessesRef]);
 
   const startDownload = useCallback(async (targetUrl: string, service: DownloadService, options: DownloadOptions = {}, existingTaskId?: string) => {

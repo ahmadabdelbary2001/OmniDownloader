@@ -58,10 +58,11 @@ export function Downloader() {
         quality?: string;
         subtitle_lang?: string;
         download_path?: string;
+        estimated_size?: number;
         thumbnail?: string;
         instant?: boolean;
       }>('omni://add-url', (event) => {
-        const { url, title, thumbnail, quality, subtitle_lang, download_path, instant } = event.payload;
+        const { url, title, thumbnail, quality, subtitle_lang, download_path, estimated_size, instant } = event.payload;
 
         // --- Deduplication Logic ---
         const now = Date.now();
@@ -88,6 +89,7 @@ export function Downloader() {
               quality: (quality || 'best') as any,
               subtitleLang: subtitle_lang || undefined,
               downloadPath: download_path || baseDownloadPath,
+              estimatedVideoSize: estimated_size || undefined,
             };
 
             const finalizeAdd = (finalTitle: string, finalThumb?: string) => {

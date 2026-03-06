@@ -20,7 +20,7 @@ pub struct AddUrlPayload {
     #[serde(default)]
     pub subtitle_lang: Option<String>,
     #[serde(default)]
-    pub download_path: Option<String>,
+    pub estimated_size: Option<u64>,
     #[serde(default)]
     pub thumbnail: Option<String>,
     #[serde(default)]

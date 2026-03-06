@@ -112,11 +112,23 @@ function populateQualities(json) {
         const info = heightMap.get(h);
         const totalSize = info.size + audioSize;
         const sizeStr = totalSize > 0 ? ` (~${formatBytes(totalSize)})` : '';
-        const label = `${h}p${info.fps > 30 ? info.fps : ''} ${info.note ? '('+info.note+')' : ''}${sizeStr}`;
+        
+        let labelPrefix = `${h}p`;
+        if (h >= 2160) labelPrefix = `4K ${h}p`;
+        else if (h >= 1440) labelPrefix = `2K ${h}p`;
+        else if (h >= 1080) labelPrefix = `FHD ${h}p`;
+        else if (h >= 720) labelPrefix = `HD ${h}p`;
+
+        const suffixes = [];
+        if (info.fps > 30) suffixes.push(`${info.fps}fps`);
+        if (info.note && info.note.toUpperCase().includes('HDR')) suffixes.push('HDR');
+        
+        const finalLabel = suffixes.length > 0 ? `${labelPrefix} (${suffixes.join(' ')})` : labelPrefix;
         
         const opt = document.createElement('option');
         opt.value = `${h}p`;
-        opt.textContent = label;
+        opt.textContent = `${finalLabel}${sizeStr}`;
+        opt.dataset.size = totalSize; 
         qualitySelect.appendChild(opt);
     });
 
@@ -124,6 +136,7 @@ function populateQualities(json) {
         const opt = document.createElement('option');
         opt.value = 'audio';
         opt.textContent = `🎵 Audio Only (MP3) (~${formatBytes(audioSize)})`;
+        opt.dataset.size = audioSize;
         qualitySelect.appendChild(opt);
     }
 
@@ -134,6 +147,7 @@ function populateQualities(json) {
         const opt = document.createElement('option');
         opt.value = 'subtitles';
         opt.textContent = `📜 Subtitles Only (SRT)`;
+        opt.dataset.size = 0;
         qualitySelect.appendChild(opt);
     }
 }
@@ -198,11 +212,15 @@ downloadBtn.addEventListener('click', () => {
     if (!tab) return;
     downloadBtn.disabled = true;
 
+    const selectedOpt = qualitySelect.options[qualitySelect.selectedIndex];
+    const estimatedSize = selectedOpt ? parseInt(selectedOpt.dataset.size || '0') : 0;
+
     const payload = {
       action: 'sendToApp',
       url: tab.url,
       title: previewTitle.textContent,
       quality: qualitySelect.value,
+      estimated_size: estimatedSize,
       subtitle_lang: subtitleSelect.value !== 'none' ? subtitleSelect.value : undefined,
       download_path: pathInput.value,
       thumbnail: previewThumb.src,
