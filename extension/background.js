@@ -35,6 +35,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       instant: request.instant,
       selected_entries: request.selected_entries || undefined,  // 🎯 Playlist multi-add
       is_playlist: request.is_playlist || false,
+      playlist_title: request.playlist_title || undefined, // 📂 Playlist name for sub-folder
     };
     
     sendToApp(request.url, request.title, options)
@@ -73,6 +74,7 @@ async function sendToApp(url, title, options = {}) {
     instant: options.instant,
     selected_entries: options.selected_entries || undefined, // 🎯 Playlist multi-add
     is_playlist: options.is_playlist || false,
+    playlist_title: options.playlist_title || undefined, // 📂 Playlist name for sub-folder
   };
 
   const res = await fetch(OMNI_CONFIG.endpoints.add, {

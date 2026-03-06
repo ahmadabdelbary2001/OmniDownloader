@@ -59,6 +59,17 @@ export function SmartAddDialog({
       if (initialOptions?.metadata) {
         const meta = initialOptions.metadata;
         setMetadata(meta);
+
+        // Phase 60: Auto-append playlist folder if prefilled 📂
+        if (meta.isPlaylist && meta.title) {
+          const safeTitle = meta.title.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+          const current = customPath || initialOptions.download_path || defaultPath;
+          if (safeTitle && current && !current.endsWith(safeTitle)) {
+            const sep = current.includes('\\') ? '\\' : '/';
+            setCustomPath(current.replace(/[\\/]$/, '') + sep + safeTitle);
+          }
+        }
+
         if (meta.isPlaylist && meta.entries) {
           const { requestedIndex, requestedVideoId, entries } = meta;
           if (requestedVideoId || requestedIndex) {
@@ -93,6 +104,17 @@ export function SmartAddDialog({
           if (result) {
             if (result.metadata) {
               setMetadata(result.metadata);
+
+              // Phase 60: Auto-append playlist folder after auto-analysis 📂
+              if (result.metadata.isPlaylist && result.metadata.title) {
+                const safeTitle = result.metadata.title.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+                const current = customPath || defaultPath;
+                if (safeTitle && current && !current.endsWith(safeTitle)) {
+                  const sep = current.includes('\\') ? '\\' : '/';
+                  setCustomPath(current.replace(/[\\/]$/, '') + sep + safeTitle);
+                }
+              }
+
               if (result.metadata.isPlaylist) {
                 const { requestedIndex, requestedVideoId, entries } = result.metadata;
                 if (requestedVideoId || requestedIndex) {
@@ -186,6 +208,21 @@ export function SmartAddDialog({
       if (result) {
         if (result.metadata) {
           setMetadata(result.metadata);
+          
+          // Phase 60: Auto-append playlist folder 📂
+          if (result.metadata.isPlaylist && result.metadata.title) {
+            const safeTitle = result.metadata.title.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (safeTitle) {
+              const current = customPath || defaultPath;
+              // Only append if it's not already there
+              if (!current.endsWith(safeTitle)) {
+                const sep = current.includes('\\') ? '\\' : '/';
+                const base = current.replace(/[\\/]$/, '');
+                setCustomPath(base + sep + safeTitle);
+              }
+            }
+          }
+
           if (result.metadata.isPlaylist) {
             const { requestedIndex, requestedVideoId, entries } = result.metadata;
             if (requestedVideoId || requestedIndex) {

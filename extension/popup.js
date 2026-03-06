@@ -94,9 +94,13 @@ async function analyzeUrl(url) {
         populateQualities(json);
 
         // ── 4. Populate Subtitles ──
-        // For playlists, use the first entry's subtitle data so the selector appears
-        const subtitleSource = (json.entries && json.entries.length > 0) ? json.entries[0] : json;
-        populateSubtitles(subtitleSource);
+        if (json.entries && json.entries.length > 0) {
+            // Playlist: always show subtitle selector with common languages
+            // (entries from yt-dlp playlists are shallow — no subtitle data per entry)
+            populatePlaylistSubtitles();
+        } else {
+            populateSubtitles(json);
+        }
 
     } catch (err) {
         previewArea.classList.remove('shimmer');
@@ -222,6 +226,28 @@ function populateSubtitles(json) {
     } else {
         subtitleField.style.display = 'none';
     }
+}
+
+function populatePlaylistSubtitles() {
+    // For playlists, always show the selector with common languages.
+    // Individual video subtitle data is only available when fetching each video separately.
+    const commonLangs = [
+        { code: 'en',    name: 'English' },
+        { code: 'ar',    name: 'Arabic (العربية)' },
+        { code: 'fr',    name: 'French (Français)' },
+        { code: 'de',    name: 'German (Deutsch)' },
+        { code: 'es',    name: 'Spanish (Español)' },
+        { code: 'zh-Hans', name: 'Chinese Simplified' },
+        { code: 'ja',    name: 'Japanese' },
+    ];
+    subtitleField.style.display = 'flex';
+    subtitleSelect.innerHTML = '<option value="none">No Subtitles</option>';
+    commonLangs.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.code;
+        opt.textContent = l.name;
+        subtitleSelect.appendChild(opt);
+    });
 }
 
 function populatePlaylist(json, tabUrl) {
@@ -435,18 +461,6 @@ downloadBtn.addEventListener('click', () => {
     const isPlaylist = lastMetadata && lastMetadata.entries && lastMetadata.entries.length > 0;
     let finalPath = pathInput.value;
 
-    if (isPlaylist) {
-        // Phase 59: Multi-video subfolder 📂
-        const playlistTitle = lastMetadata.title || "Playlist";
-        // Sanitize: remove characters not allowed in folder names
-        const sanitizedTitle = playlistTitle.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (sanitizedTitle) {
-            // Works on both Windows (\) and Mac/Linux (/)
-            finalPath = finalPath.replace(/[\\/]$/, '');  // trim trailing slash
-            finalPath = finalPath + '\\' + sanitizedTitle;
-        }
-    }
-
     const payload = {
       action: 'sendToApp',
       url: tab.url,
@@ -468,6 +482,7 @@ downloadBtn.addEventListener('click', () => {
         if (selected.length > 0) {
             payload.selected_entries = selected;
             payload.is_playlist = true;
+            payload.playlist_title = lastMetadata.title || null; // 📂 Playlist name for sub-folder
             payload.metadata = null; // CRITICAL: Prevent duplication 🛑
         }
     }

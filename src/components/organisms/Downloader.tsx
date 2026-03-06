@@ -66,10 +66,11 @@ export function Downloader() {
         instant?: boolean;
         selected_entries?: any[];
         is_playlist?: boolean;
+        playlist_title?: string;
       }>('omni://add-url', (event) => {
         const { 
           url, title, thumbnail, quality, subtitle_lang, download_path, 
-          estimated_size, metadata, instant, selected_entries
+          estimated_size, metadata, instant, selected_entries, playlist_title
         } = event.payload;
 
         // --- Deduplication Logic ---
@@ -105,6 +106,17 @@ export function Downloader() {
           // Phase 56: Bulk Add Selection 🚀
           if (selected_entries && selected_entries.length > 0) {
             import('../../lib/linkAnalyzer').then(({ analyzeLinkType }) => {
+              // Build a playlist sub-folder — use explicit playlist_title, NOT video title 📂
+              const basePath = download_path || baseDownloadPath;
+              let playlistPath = basePath;
+              const folderName = playlist_title; // Sent from extension: lastMetadata.title
+              if (folderName) {
+                const safeTitle = folderName.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+                if (safeTitle) {
+                  playlistPath = basePath.replace(/[\\/]$/, '') + '\\' + safeTitle;
+                }
+              }
+
               const bulkItems = selected_entries.map((entry: any) => ({
                 url: entry.url || entry.webpage_url || url,
                 title: entry.title || 'Unknown Video',
@@ -113,7 +125,7 @@ export function Downloader() {
                 options: {
                   quality: (quality || 'best') as any,
                   subtitleLang: subtitle_lang || undefined,
-                  downloadPath: download_path || baseDownloadPath,
+                  downloadPath: playlistPath,
                   estimatedVideoSize: estimated_size || undefined,
                 }
               }));
