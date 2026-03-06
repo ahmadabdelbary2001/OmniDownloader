@@ -32,7 +32,9 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       thumbnail: request.thumbnail,
       estimated_size: request.estimated_size,
       metadata: request.metadata,
-      instant: request.instant
+      instant: request.instant,
+      selected_entries: request.selected_entries || undefined,  // 🎯 Playlist multi-add
+      is_playlist: request.is_playlist || false,
     };
     
     sendToApp(request.url, request.title, options)
@@ -68,7 +70,9 @@ async function sendToApp(url, title, options = {}) {
     thumbnail: options.thumbnail,
     estimated_size: options.estimated_size,
     metadata: options.metadata,
-    instant: options.instant
+    instant: options.instant,
+    selected_entries: options.selected_entries || undefined, // 🎯 Playlist multi-add
+    is_playlist: options.is_playlist || false,
   };
 
   const res = await fetch(OMNI_CONFIG.endpoints.add, {

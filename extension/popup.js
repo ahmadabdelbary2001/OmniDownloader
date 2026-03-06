@@ -94,7 +94,9 @@ async function analyzeUrl(url) {
         populateQualities(json);
 
         // ── 4. Populate Subtitles ──
-        populateSubtitles(json);
+        // For playlists, use the first entry's subtitle data so the selector appears
+        const subtitleSource = (json.entries && json.entries.length > 0) ? json.entries[0] : json;
+        populateSubtitles(subtitleSource);
 
     } catch (err) {
         previewArea.classList.remove('shimmer');
@@ -436,11 +438,12 @@ downloadBtn.addEventListener('click', () => {
     if (isPlaylist) {
         // Phase 59: Multi-video subfolder 📂
         const playlistTitle = lastMetadata.title || "Playlist";
-        const sanitizedTitle = playlistTitle.replace(/[\\/:*?"<>|]/g, '_').trim();
+        // Sanitize: remove characters not allowed in folder names
+        const sanitizedTitle = playlistTitle.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
         if (sanitizedTitle) {
-            const separator = finalPath.includes('\\') ? '\\' : '/';
-            if (finalPath && !finalPath.endsWith(separator)) finalPath += separator;
-            finalPath += sanitizedTitle;
+            // Works on both Windows (\) and Mac/Linux (/)
+            finalPath = finalPath.replace(/[\\/]$/, '');  // trim trailing slash
+            finalPath = finalPath + '\\' + sanitizedTitle;
         }
     }
 
