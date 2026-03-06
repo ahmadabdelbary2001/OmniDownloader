@@ -138,6 +138,9 @@ export function parseYtdlpOutput(json: any, url: string, fastMeta?: Partial<Medi
   return metadata;
 }
 
+const metadataCache = new Map<string, { data: MediaMetadata, timestamp: number }>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProcessesRef }: UseMetadataOptions = {}) {
   const { 
     fetchVideoMetadata, 
@@ -148,6 +151,13 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
 
   const getMediaMetadata = useCallback(async (url: string): Promise<MediaMetadata | null> => {
     if (!url) return null;
+
+    // Phase 55: Frontend Cache Check 🧠
+    const cached = metadataCache.get(url);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      console.log(`[Omni] Frontend Cache HIT for: ${url}`);
+      return cached.data;
+    }
     if (setIsLoading) setIsLoading(true);
     
     try {
@@ -308,6 +318,10 @@ export function useMetadata({ addLog, setIsLoading, stopRequestedRef, activeProc
         addLog(metadata.isPlaylist 
           ? `✅ Representative qualities found: ${count}` 
           : `✅ Available qualities: ${count} found.`);
+      }
+
+      if (metadata) {
+        metadataCache.set(url, { data: metadata, timestamp: Date.now() });
       }
 
       return metadata;

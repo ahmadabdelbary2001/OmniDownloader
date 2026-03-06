@@ -2318,6 +2318,7 @@ name = "omni_downloader"
 version = "2.4.0"
 dependencies = [
  "chrono",
+ "once_cell",
  "rand 0.8.5",
  "rusqlite",
  "serde",

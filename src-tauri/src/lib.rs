@@ -1,7 +1,20 @@
-// src-tauri/src/lib.rs
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tiny_http::{Header, Method, Response, Server};
 use std::sync::Mutex;
+use std::collections::HashMap;
+use std::time::{Instant, Duration};
+use once_cell::sync::Lazy;
+
+struct CacheEntry {
+    data: String,
+    timestamp: Instant,
+}
+
+static ANALYSIS_CACHE: Lazy<Mutex<HashMap<String, CacheEntry>>> = Lazy::new(|| {
+    Mutex::new(HashMap::new())
+});
+
+const CACHE_TTL: Duration = Duration::from_secs(600); // 10 minutes
 
 // Shared state for the HTTP server
 pub struct AppState {
@@ -105,34 +118,65 @@ pub fn start_http_server<R: Runtime>(app_handle: AppHandle<R>) {
                         .map(|s| urlencoding::decode(s).unwrap_or(s.into()).to_string())
                         .unwrap_or_default();
 
-                    if !url_param.is_empty() {
-                        // Resolve and run sidecar
-                        use tauri_plugin_shell::ShellExt;
-                        let sidecar = app_handle_inner.shell().sidecar("ytdlp");
-                        
-                        match sidecar {
-                            Ok(sc) => {
-                                // Add arguments and run (using block_on because we are in a synchronous thread)
-                                let output = tauri::async_runtime::block_on(
-                                    sc.args(&["--dump-single-json", "--no-playlist", "--flat-playlist", &url_param])
-                                        .output()
-                                );
-                                
-                                match output {
-                                    Ok(out) if out.status.success() => {
-                                        String::from_utf8_lossy(&out.stdout).to_string()
-                                    }
-                                    Ok(out) => {
-                                        let err = String::from_utf8_lossy(&out.stderr);
-                                        serde_json::json!({ "error": "Analysis failed", "details": err }).to_string()
-                                    }
-                                    Err(e) => serde_json::json!({ "error": "Failed to run sidecar", "details": e.to_string() }).to_string()
-                                }
-                            }
-                            Err(e) => serde_json::json!({ "error": "Sidecar not found", "details": e.to_string() }).to_string()
-                        }
-                    } else {
+                    if url_param.is_empty() {
                         r#"{"error":"Missing URL"}"#.to_string()
+                    } else {
+                        // Check Cache First 🧠
+                        let cached_data = {
+                            let mut cache = ANALYSIS_CACHE.lock().unwrap();
+                            if let Some(entry) = cache.get(&url_param) {
+                                if entry.timestamp.elapsed() < CACHE_TTL {
+                                    println!("[OmniHTTP] Cache HIT for: {}", url_param);
+                                    Some(entry.data.clone())
+                                } else {
+                                    cache.remove(&url_param);
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(data) = cached_data {
+                            data
+                        } else {
+                            // Resolve and run sidecar
+                            use tauri_plugin_shell::ShellExt;
+                            let sidecar = app_handle_inner.shell().sidecar("ytdlp");
+                            
+                            match sidecar {
+                                Ok(sc) => {
+                                    // Add arguments and run (using block_on because we are in a synchronous thread)
+                                    let output = tauri::async_runtime::block_on(
+                                        sc.args(&["--dump-single-json", "--no-playlist", "--flat-playlist", &url_param])
+                                            .output()
+                                    );
+                                    
+                                    match output {
+                                        Ok(out) if out.status.success() => {
+                                            let json_data = String::from_utf8_lossy(&out.stdout).to_string();
+                                            
+                                            // Update Cache 📝
+                                            {
+                                                let mut cache = ANALYSIS_CACHE.lock().unwrap();
+                                                cache.insert(url_param.clone(), CacheEntry {
+                                                    data: json_data.clone(),
+                                                    timestamp: Instant::now(),
+                                                });
+                                            }
+                                            
+                                            json_data
+                                        }
+                                        Ok(out) => {
+                                            let err = String::from_utf8_lossy(&out.stderr);
+                                            serde_json::json!({ "error": "Analysis failed", "details": err }).to_string()
+                                        }
+                                        Err(e) => serde_json::json!({ "error": "Failed to run sidecar", "details": e.to_string() }).to_string()
+                                    }
+                                }
+                                Err(e) => serde_json::json!({ "error": "Sidecar not found", "details": e.to_string() }).to_string()
+                            }
+                        }
                     }
                 }
 
