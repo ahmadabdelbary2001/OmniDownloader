@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 use once_cell::sync::Lazy;
+use serde_json::{json, Value};
 
 struct CacheEntry {
     data: String,
@@ -51,11 +52,20 @@ pub struct AddUrlPayload {
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct SummarizePayload {
+    pub url: String,
+    pub lang: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct DefaultsPayload {
     pub base_download_path: String,
 }
 
 pub fn start_http_server<R: Runtime>(app_handle: AppHandle<R>) {
+    // Load .env file
+    let _ = dotenvy::dotenv();
+
     // Initialize state if not already managed
     if app_handle.try_state::<AppState>().is_none() {
         app_handle.manage(AppState {
@@ -207,6 +217,70 @@ pub fn start_http_server<R: Runtime>(app_handle: AppHandle<R>) {
                     }
                 }
 
+                (Method::Post, "/summarize") => {
+                    match serde_json::from_str::<SummarizePayload>(&body) {
+                        Ok(p) => {
+                            let url = p.url.clone();
+                            let lang = p.lang.unwrap_or_else(|| "en".to_string());
+                            
+                            // 1. Get Metadata to find subtitle URLs
+                            use tauri_plugin_shell::ShellExt;
+                            let sidecar = app_handle_inner.shell().sidecar("ytdlp");
+                            
+                            let summary_result = match sidecar {
+                                Ok(sc) => {
+                                    let output = tauri::async_runtime::block_on(
+                                        sc.args(&["--dump-single-json", "--no-playlist", "--flat-playlist", &url])
+                                            .output()
+                                    );
+                                    
+                                    match output {
+                                        Ok(out) if out.status.success() => {
+                                            let json_data: Value = serde_json::from_slice(&out.stdout).unwrap_or(json!({}));
+                                            
+                                            // 2. Extract Transcript URL (prefer json3 for easier parsing)
+                                            let transcript_url = extract_transcript_url(&json_data, &lang);
+                                            
+                                            match transcript_url {
+                                                Some(t_url) => {
+                                                    // 3. Fetch and Parse Transcript
+                                                    let transcript = tauri::async_runtime::block_on(async {
+                                                        fetch_and_clean_transcript(&t_url).await
+                                                    });
+                                                    
+                                                    match transcript {
+                                                        Ok(text) if !text.is_empty() => {
+                                                            // 4. Call Gemini API
+                                                            let api_key = std::env::var("VITE_GEMINI_API_KEY").unwrap_or_default();
+                                                            if api_key.is_empty() {
+                                                                json!({ "error": "Gemini API key not found in .env" })
+                                                            } else {
+                                                                let gemini_res = tauri::async_runtime::block_on(async {
+                                                                    call_gemini(&api_key, &text, &lang).await
+                                                                });
+                                                                match gemini_res {
+                                                                    Ok(summary) => json!({ "status": "ok", "summary": summary }),
+                                                                    Err(e) => json!({ "error": format!("Gemini API failed: {}", e) })
+                                                                }
+                                                            }
+                                                        }
+                                                        _ => json!({ "error": "Could not extract clean transcript" })
+                                                    }
+                                                }
+                                                None => json!({ "error": format!("No transcript found for language: {}", lang) })
+                                            }
+                                        }
+                                        _ => json!({ "error": "Metadata analysis failed" })
+                                    }
+                                }
+                                Err(e) => json!({ "error": format!("Sidecar error: {}", e) })
+                            };
+                            summary_result.to_string()
+                        }
+                        _ => json!({ "error": "Invalid payload" }).to_string()
+                    }
+                }
+
                 _ => r#"{"status":"error","message":"Not Found"}"#.to_string()
             };
 
@@ -216,4 +290,128 @@ pub fn start_http_server<R: Runtime>(app_handle: AppHandle<R>) {
             let _ = request.respond(response);
         }
     });
+}
+
+fn extract_transcript_url(json: &Value, lang: &str) -> Option<String> {
+    let check_section = |section: &Value| -> Option<String> {
+        if let Some(subs) = section.as_object() {
+            // 1. Try exact match
+            if let Some(lang_subs) = subs.get(lang) {
+                if let Some(arr) = lang_subs.as_array() {
+                    for entry in arr {
+                        if entry.get("ext").and_then(|v| v.as_str()) == Some("json3") {
+                            return entry.get("url").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        }
+                    }
+                    return arr.get(0).and_then(|e| e.get("url")).and_then(|v| v.as_str()).map(|s| s.to_string());
+                }
+            }
+            // 2. Try prefix match (e.g. "en" matches "en-US")
+            for (key, val) in subs {
+                if key.starts_with(lang) {
+                    if let Some(arr) = val.as_array() {
+                         for entry in arr {
+                            if entry.get("ext").and_then(|v| v.as_str()) == Some("json3") {
+                                return entry.get("url").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            }
+                        }
+                        return arr.get(0).and_then(|e| e.get("url")).and_then(|v| v.as_str()).map(|s| s.to_string());
+                    }
+                }
+            }
+        }
+        None
+    };
+
+    if let Some(subs) = json.get("subtitles") {
+        if let Some(url) = check_section(subs) { return Some(url); }
+    }
+    if let Some(auto) = json.get("automatic_captions") {
+        if let Some(url) = check_section(auto) { return Some(url); }
+    }
+    None
+}
+
+async fn fetch_and_clean_transcript(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let res = client.get(url).send().await?;
+    
+    if !res.status().is_success() {
+        return Err(format!("Failed to fetch transcript from YouTube: {}", res.status()).into());
+    }
+
+    let json_sub: Value = res.json().await?;
+    
+    let mut text = String::new();
+    if let Some(events) = json_sub.get("events").and_then(|v| v.as_array()) {
+        for event in events {
+            if let Some(segs) = event.get("segs").and_then(|v| v.as_array()) {
+                for seg in segs {
+                    if let Some(utf8) = seg.get("utf8").and_then(|v| v.as_str()) {
+                        text.push_str(utf8);
+                    }
+                }
+                text.push(' ');
+            }
+        }
+    }
+    
+    let cleaned = text.trim().to_string();
+    if cleaned.is_empty() {
+        return Err("Transcript is empty after cleaning".into());
+    }
+    
+    Ok(cleaned)
+}
+
+async fn call_gemini(api_key: &str, transcript: &str, lang: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}", api_key);
+    
+    let prompt = format!(
+        "قم بتلخيص هذا النص المستخرج من فيديو يوتيوب على شكل نقاط رئيسية (Bullet Points) مع خاتمة، واجعله باللغة {}.\n\nالنص:\n{}",
+        lang, transcript
+    );
+    
+    let payload = json!({
+        "contents": [{
+            "parts": [{
+                "text": prompt
+            }]
+        }]
+    });
+    
+    println!("[Gemini] Sending request to API...");
+    let res = client.post(&url)
+        .json(&payload)
+        .send()
+        .await?;
+    
+    let status = res.status();
+    let res_json: Value = res.json().await?;
+    
+    if !status.is_success() {
+        let err_msg = res_json.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()).unwrap_or("Unknown API Error");
+        println!("[Gemini] API Error {}: {}", status, err_msg);
+        return Err(format!("Gemini API Error ({}): {}", status, err_msg).into());
+    }
+
+    if let Some(candidates) = res_json.get("candidates").and_then(|v| v.as_array()) {
+        if let Some(candidate) = candidates.get(0) {
+             // Check for safety or other finish reasons
+            if let Some(reason) = candidate.get("finishReason").and_then(|v| v.as_str()) {
+                if reason == "SAFETY" {
+                    return Err("Summarization was blocked by safety filters.".into());
+                }
+            }
+
+            if let Some(text) = candidate.get("content").and_then(|c| c.get("parts")).and_then(|p| p.as_array()).and_then(|arr| arr.get(0)).and_then(|p| p.get("text")).and_then(|v| v.as_str()) {
+                println!("[Gemini] Summarization successful.");
+                return Ok(text.to_string());
+            }
+        }
+    }
+    
+    println!("[Gemini] Failed to parse response: {:?}", res_json);
+    Err(format!("Failed to parse Gemini response: {}", res_json).into())
 }

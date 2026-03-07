@@ -1,7 +1,7 @@
 // extension/config.js — Shared constants for OmniDownloader Extension v2.5
 
 const OMNI_CONFIG = {
-  version:    '2.4',
+  version:    '2.5',
   appName:    'OmniDownloader',
   serverBase: 'http://127.0.0.1:7433',
   endpoints: {
@@ -10,6 +10,7 @@ const OMNI_CONFIG = {
     analyze: 'http://127.0.0.1:7433/analyze',
     defaults: 'http://127.0.0.1:7433/defaults',
     setDefaults: 'http://127.0.0.1:7433/set-defaults',
+    summarize: 'http://127.0.0.1:7433/summarize',
   },
   // MV3 chrome.alarms minimum is 1 minute — background polls on this cadence
   pollInterval: 10_000,

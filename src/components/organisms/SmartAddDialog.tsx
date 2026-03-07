@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
-import { Loader2, Folder, X, Download } from "lucide-react";
+import { Loader2, Folder, X, Download, Sparkles, FileText } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { analyzeLinkType } from "../../lib/linkAnalyzer";
 import { resolveEmbedUrl } from "../../lib/youtube";
@@ -166,6 +166,8 @@ export function SmartAddDialog({
   const [subtitleLang, setSubtitleLang]       = useState<string>("none");
   const [embedSubtitles, setEmbedSubtitles]   = useState(true);
   const [showAllTranslations, setShowAllTranslations] = useState(false);
+  const [isSummarizing, setIsSummarizing]       = useState(false);
+  const [summary, setSummary]                   = useState<string | null>(null);
 
   // Helper to convert selection Set to yt-dlp string (e.g. 1,2,5-10)
   const getRangeString = (indices: Set<number>) => {
@@ -318,6 +320,42 @@ export function SmartAddDialog({
   const handlePickFolder = async () => {
     const picked = await onSelectPath();
     if (picked) setCustomPath(picked);
+  };
+  
+  const handleSummarize = async () => {
+    if (!url) return;
+    setIsSummarizing(true);
+    setSummary(null);
+    try {
+      const response = await fetch("http://127.0.0.1:7433/summarize", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, lang: subtitleLang !== 'none' ? subtitleLang : 'en' })
+      });
+      const result = await response.json();
+      if (result.status === 'ok') {
+        setSummary(result.summary);
+        toast.success("Summary generated successfully!");
+      } else {
+        toast.error(result.error || "Summarization failed");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not connect to the summarization service.");
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const downloadSummaryTxt = () => {
+    if (!summary) return;
+    const blob = new Blob([summary], { type: 'text/plain' });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${(metadata?.title || 'video').replace(/[^a-z0-0]/gi, '_').toLowerCase()}_summary.txt`;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
   };
 
   return (
@@ -486,6 +524,52 @@ export function SmartAddDialog({
                     onToggleEmbed={setEmbedSubtitles}
                   />
                 )}
+
+                {/* AI Summary Section */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest px-1">AI Video Summary</label>
+                    {!summary && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSummarize}
+                        disabled={isSummarizing}
+                        className="h-8 rounded-lg text-[10px] font-bold border-primary/20 hover:bg-primary/5 text-primary gap-2"
+                      >
+                        {isSummarizing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        {isSummarizing ? "Thinking..." : "Summarize with AI"}
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {summary && (
+                    <div className="bg-muted/30 border border-primary/10 rounded-2xl p-4 space-y-3 animate-in zoom-in-95 fade-in duration-500">
+                      <div className="text-[12px] leading-relaxed text-foreground/80 whitespace-pre-wrap max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                        {summary}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={downloadSummaryTxt}
+                          className="h-8 rounded-lg text-[10px] font-bold gap-2 bg-primary/10 hover:bg-primary/20 text-primary border-none"
+                        >
+                          <FileText className="w-3 h-3" />
+                          Download as .txt
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSummary(null)}
+                          className="h-8 rounded-lg text-[10px] font-bold text-muted-foreground"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

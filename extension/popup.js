@@ -21,6 +21,12 @@ const playlistArea    = document.getElementById('playlistArea');
 const selectAllBtn     = document.getElementById('selectAllBtn');
 const selectedCountEl  = document.getElementById('selectedCount');
 
+const summarizeBtn  = document.getElementById('summarizeBtn');
+const summaryArea   = document.getElementById('summaryArea');
+const summaryContent = document.getElementById('summaryContent');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const downloadSummaryBtn = document.getElementById('downloadSummaryBtn');
+
 // ── Initialization ─────────────────────────────────────────────────────────
 
 // Load saved options + Sync App Defaults
@@ -508,6 +514,62 @@ downloadBtn.addEventListener('click', () => {
       }
     });
   });
+});
+
+// ── Summarization ──────────────────────────────────────────────────────────
+summarizeBtn.addEventListener('click', async () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
+        if (!tab?.url) return;
+
+        // Visual feedback
+        summarizeBtn.disabled = true;
+        const originalText = summarizeBtn.innerHTML;
+        summarizeBtn.textContent = '⌛ Summarizing...';
+        
+        summaryArea.style.display = 'none';
+
+        try {
+            const lang = (subtitleSelect.value && subtitleSelect.value !== 'none') ? subtitleSelect.value : 'en';
+            
+            const response = await fetch(OMNI_CONFIG.endpoints.summarize, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: tab.url, lang })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'ok') {
+                summaryContent.textContent = result.summary;
+                summaryArea.style.display = 'flex';
+                summaryArea.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                alert(`Summarization failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Could not connect to the app. Is it running?');
+        } finally {
+            summarizeBtn.disabled = false;
+            summarizeBtn.innerHTML = originalText;
+        }
+    });
+});
+
+closeSummaryBtn.addEventListener('click', () => {
+    summaryArea.style.display = 'none';
+});
+
+downloadSummaryBtn.addEventListener('click', () => {
+    const text = summaryContent.textContent;
+    const title = previewTitle.textContent || 'summary';
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-0]/gi, '_').toLowerCase()}_summary.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
 });
 
 const iconPlus = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>`;
